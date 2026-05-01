@@ -1,0 +1,6 @@
+pydantic>=2.7
+pyyaml>=6.0
+numpy>=1.26
+psycopg[binary]>=3.2
+pytest>=8.0
+ruff>=0.5

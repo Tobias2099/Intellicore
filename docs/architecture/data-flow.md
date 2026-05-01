@@ -5,7 +5,7 @@ flowchart LR
     Gem5["gem5 simulation"] --> Adapter["sim/gem5-intellicore"]
     Adapter --> Trace["Memory trace records"]
     Trace --> Control["services/control-plane"]
-    Control --> Postgres["PostgreSQL telemetry store"]
+    Control --> Postgres["Supabase Postgres telemetry store"]
     Postgres --> Dashboard["apps/visual-stats"]
     Postgres --> Training["services/training"]
     Training --> Agent["Agent policy artifacts"]

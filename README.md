@@ -1,29 +1,88 @@
 # IntelliCore
 
-IntelliCore is a research monorepo for a MARL-driven cache coordination system. The platform is organized around the project requirements: cycle-accurate gem5 simulation, Python-based agent training, PostgreSQL telemetry storage, and a Visual-Stats dashboard for performance analysis.
+IntelliCore is a research monorepo for a MARL-driven cache coordination system. The platform is organized around the project requirements: cycle-accurate gem5 simulation, Python-based agent training, Supabase cloud Postgres telemetry storage, and a Visual-Stats dashboard for performance analysis.
 
-## Workspace Layout
+## Repository Structure
 
 ```text
-apps/
-  visual-stats/          React dashboard for telemetry and heatmaps
-services/
-  control-plane/         IntelliCore CLI and simulation orchestration
-  training/              MARL training and trace processing
-sim/
-  gem5-intellicore/      C++ gem5 integration stubs
-packages/
-  contracts/             Shared JSON schemas and event contracts
-infra/
-  db/                    PostgreSQL migrations
-configs/
-  agents/                Agent hyperparameter presets
-  gem5/                  Baseline simulator configurations
-benchmarks/              Benchmark manifests and workload metadata
-docs/
-  architecture/          Architecture notes and requirement mapping
-scripts/                 Local developer automation
+.
+|-- apps/
+|   `-- visual-stats/
+|       `-- src/
+|-- benchmarks/
+|-- configs/
+|   |-- agents/
+|   `-- gem5/
+|-- docs/
+|   `-- architecture/
+|-- infra/
+|   |-- db/
+|   |   `-- migrations/
+|   `-- docker/
+|-- packages/
+|   `-- contracts/
+|       `-- schemas/
+|-- scripts/
+|-- services/
+|   |-- control-plane/
+|   |   |-- src/intellicore_control/
+|   |   `-- tests/
+|   `-- training/
+|       |-- src/intellicore_training/
+|       `-- tests/
+`-- sim/
+    `-- gem5-intellicore/
+        |-- include/intellicore/
+        |-- src/
+        `-- tests/
 ```
+
+## Folder Guide
+
+| Path | Purpose |
+| --- | --- |
+| `apps/` | User-facing applications that consume IntelliCore telemetry and research outputs. |
+| `apps/visual-stats/` | React/Vite dashboard for performance analysis, metric summaries, and future cache residency heatmaps. |
+| `apps/visual-stats/src/` | Dashboard source code, styling, and UI components. |
+| `benchmarks/` | Benchmark manifests and workload metadata. This is where SPEC, STREAM, synthetic stride, and future workload definitions are tracked. |
+| `configs/` | Versioned configuration files used by services, simulation runs, and agents. |
+| `configs/agents/` | MARL agent and baseline policy presets, including reward weights and inference limits. |
+| `configs/gem5/` | Baseline simulator configurations for ISA, core count, memory, cache hierarchy, and deterministic telemetry settings. |
+| `docs/` | Project documentation that is not tied to one package. |
+| `docs/architecture/` | Architecture notes, data-flow diagrams, Docker usage, and requirement-to-module mapping. |
+| `infra/` | Infrastructure needed to run or support the project locally and in containers. |
+| `infra/db/` | Database assets for the Supabase telemetry store. |
+| `infra/db/migrations/` | SQL schema migrations for Supabase tables: simulation runs, telemetry events, memory traces, and area audit reports. |
+| `infra/docker/` | Docker image definitions for the research development environment. |
+| `packages/` | Shared packages used by more than one app or service. |
+| `packages/contracts/` | Shared event contracts and schema package for simulation, telemetry, and service boundaries. |
+| `packages/contracts/schemas/` | JSON Schema files for telemetry events and memory trace records. |
+| `scripts/` | Developer automation and smoke checks. These scripts should be safe to run locally or inside Docker. |
+| `services/` | Backend and research services. |
+| `services/control-plane/` | Python CLI and orchestration layer for validating gem5 configs, planning deterministic simulation runs, and modeling telemetry events. |
+| `services/control-plane/src/intellicore_control/` | Control-plane package source code. |
+| `services/control-plane/tests/` | Unit tests for run planning and telemetry models. |
+| `services/training/` | Python package for MARL training, reward scoring, trace replay, and baseline prefetch policies. |
+| `services/training/src/intellicore_training/` | Training package source code. |
+| `services/training/tests/` | Unit tests for reward and policy behavior. |
+| `sim/` | Simulator-facing code and C++ integration modules. |
+| `sim/gem5-intellicore/` | C++ scaffold for gem5 cache-agent integration and smoke tests. |
+| `sim/gem5-intellicore/include/intellicore/` | Public C++ headers for cache-agent types and decisions. |
+| `sim/gem5-intellicore/src/` | C++ implementation files. |
+| `sim/gem5-intellicore/tests/` | C++ smoke tests for the simulator adapter layer. |
+
+## Root Files
+
+| File | Purpose |
+| --- | --- |
+| `.dockerignore` | Keeps local build artifacts, virtualenvs, caches, and Git metadata out of Docker build contexts. |
+| `.editorconfig` | Normalizes line endings and indentation across editors. |
+| `.env.example` | Template for local environment variables, including the Supabase `DATABASE_URL`, `GEM5_ROOT`, and artifact paths. |
+| `.gitignore` | Excludes generated files, build outputs, dependency folders, caches, and local secrets. |
+| `docker-compose.yml` | Docker stack for the Python/PyTorch/C++ dev container, gem5 shell, and Supabase schema checks. |
+| `package.json` | Node workspace metadata for frontend apps and shared JavaScript/JSON packages. |
+| `pyproject.toml` | Root Python workspace metadata, test path configuration, and lint settings. |
+| `requirements-dev.txt` | Python dependencies installed into the Docker development image. |
 
 ## First Milestone
 
@@ -38,37 +97,64 @@ Sprint 1 focuses on a runnable simulation foundation:
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres
-docker compose run --rm supabase-check
-python -m intellicore_control runs plan --config configs/gem5/baseline-x86.yaml
-python -m intellicore_training train --config configs/agents/baseline-dqn.yaml
+docker compose --profile dev build dev
+docker compose --profile dev run --rm dev bash scripts/docker-smoke.sh
+docker compose --profile tools run --rm supabase-check
 ```
+
+Before running commands that touch telemetry, set `DATABASE_URL` in `.env` to the Supabase cloud Postgres connection string.
 
 ## Docker Usage
 
 ### Services
 
-- `postgres`: Local Postgres for telemetry and dev workflows.
-- `supabase-check`: One-shot container that tests connectivity to the Supabase Postgres
-  instance configured via `DATABASE_URL` in `.env`.
+- `dev`: Long-running development container with Python 3.11, CPU PyTorch, C++ build tools, and gem5 dependencies.
+- `gem5-shell`: Interactive shell using the dev image, with gem5 source/build volumes mounted under `/opt/gem5`.
+- `supabase-check`: One-shot database schema check container that verifies the Supabase telemetry database schema through `DATABASE_URL`.
 
 ### Commands
 
 ```bash
-# Start the local Postgres container
-docker compose up -d postgres
+# Build the Python/PyTorch/C++/gem5 development image
+docker compose --profile dev build dev
 
-# Verify Supabase connectivity (uses DATABASE_URL from .env)
-docker compose run --rm supabase-check
+# Run the full Docker toolchain smoke test
+docker compose --profile dev run --rm dev bash scripts/docker-smoke.sh
 
-# View logs for the local Postgres container
-docker compose logs -f postgres
+# Start a persistent development shell
+docker compose --profile dev up -d dev
+docker compose exec dev bash
 
-# Stop and remove containers (keeps data volume)
+# Verify the Supabase telemetry database schema
+docker compose --profile tools run --rm supabase-check
+
+# Open an interactive gem5-oriented shell
+docker compose --profile gem5 run --rm gem5-shell
+
+# Stop and remove containers
 docker compose down
+```
 
-# Stop and remove containers plus local Postgres data
-docker compose down -v
+## gem5 Workflow
+
+The Docker image includes gem5 build dependencies, but it does not clone gem5 automatically because the upstream simulator is large and should be versioned independently from this scaffold.
+
+```bash
+docker compose --profile dev up -d dev
+docker compose exec dev bash
+git clone https://gem5.googlesource.com/public/gem5 "$GEM5_ROOT"
+cd "$GEM5_ROOT"
+scons build/X86/gem5.opt -j"$(nproc)"
+```
+
+## Local Python Commands
+
+If the Python packages are available locally, the starter CLIs can also be run without Docker:
+
+```bash
+$env:PYTHONPATH="services/control-plane/src;services/training/src"
+python -m intellicore_control.cli runs plan --config configs/gem5/baseline-x86.yaml
+python -m intellicore_training.cli train --config configs/agents/baseline-dqn.yaml
 ```
 
 The generated code is intentionally lightweight boilerplate. It defines stable module boundaries and data contracts so gem5 integration, MARL policies, telemetry ingestion, and dashboard work can evolve independently.

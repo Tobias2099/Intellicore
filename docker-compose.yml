@@ -1,21 +1,42 @@
 services:
-  postgres:
-    image: postgres:16
-    container_name: intellicore-postgres
-    environment:
-      POSTGRES_DB: intellicore
-      POSTGRES_USER: intellicore
-      POSTGRES_PASSWORD: intellicore
-    ports:
-      - "5432:5432"
+  dev:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        INSTALL_TORCH: "true"
+    image: intellicore/dev:local
+    container_name: intellicore-dev
+    working_dir: /workspace
     volumes:
-      - intellicore-postgres:/var/lib/postgresql/data
-      - ./infra/db/migrations:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U intellicore -d intellicore"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - ./:/workspace
+      - gem5-source:/opt/gem5
+      - pip-cache:/root/.cache/pip
+    env_file:
+      - .env
+    environment:
+      GEM5_ROOT: /opt/gem5
+      PYTHONPATH: /workspace/services/control-plane/src:/workspace/services/training/src
+    profiles:
+      - dev
+    command: sleep infinity
+
+  gem5-shell:
+    image: intellicore/dev:local
+    container_name: intellicore-gem5-shell
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+      - gem5-source:/opt/gem5
+      - gem5-build:/opt/gem5/build
+    environment:
+      GEM5_ROOT: /opt/gem5
+      PYTHONPATH: /workspace/services/control-plane/src:/workspace/services/training/src
+    profiles:
+      - gem5
+    command: bash
+    stdin_open: true
+    tty: true
 
   supabase-check:
     image: python:3.11-slim
@@ -24,9 +45,13 @@ services:
       - ./:/workspace:ro
     env_file:
       - .env
+    profiles:
+      - tools
     command: >-
       sh -c "python -m pip install --no-cache-dir 'psycopg[binary]' &&
       python scripts/check_db.py"
 
 volumes:
-  intellicore-postgres:
+  gem5-source:
+  gem5-build:
+  pip-cache:
