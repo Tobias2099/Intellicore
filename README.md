@@ -39,8 +39,36 @@ Sprint 1 focuses on a runnable simulation foundation:
 ```bash
 cp .env.example .env
 docker compose up -d postgres
+docker compose run --rm supabase-check
 python -m intellicore_control runs plan --config configs/gem5/baseline-x86.yaml
 python -m intellicore_training train --config configs/agents/baseline-dqn.yaml
+```
+
+## Docker Usage
+
+### Services
+
+- `postgres`: Local Postgres for telemetry and dev workflows.
+- `supabase-check`: One-shot container that tests connectivity to the Supabase Postgres
+  instance configured via `DATABASE_URL` in `.env`.
+
+### Commands
+
+```bash
+# Start the local Postgres container
+docker compose up -d postgres
+
+# Verify Supabase connectivity (uses DATABASE_URL from .env)
+docker compose run --rm supabase-check
+
+# View logs for the local Postgres container
+docker compose logs -f postgres
+
+# Stop and remove containers (keeps data volume)
+docker compose down
+
+# Stop and remove containers plus local Postgres data
+docker compose down -v
 ```
 
 The generated code is intentionally lightweight boilerplate. It defines stable module boundaries and data contracts so gem5 integration, MARL policies, telemetry ingestion, and dashboard work can evolve independently.

@@ -17,5 +17,16 @@ services:
       timeout: 5s
       retries: 5
 
+  supabase-check:
+    image: python:3.11-slim
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace:ro
+    env_file:
+      - .env
+    command: >-
+      sh -c "python -m pip install --no-cache-dir 'psycopg[binary]' &&
+      python scripts/check_db.py"
+
 volumes:
   intellicore-postgres:
