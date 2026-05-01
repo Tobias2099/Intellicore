@@ -48,8 +48,64 @@ services:
     profiles:
       - tools
     command: >-
-      sh -c "python -m pip install --no-cache-dir 'psycopg[binary]' &&
-      python scripts/check_db.py"
+      sh -c "python -m pip install --no-cache-dir -r requirements-dev.txt &&
+      PYTHONPATH=services/control-plane/src python scripts/check_db.py"
+
+  supabase-migrate:
+    image: python:3.11-slim
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace:ro
+    env_file:
+      - .env
+    profiles:
+      - tools
+    command: >-
+      sh -c "python -m pip install --no-cache-dir -r requirements-dev.txt &&
+      alembic upgrade head &&
+      PYTHONPATH=services/control-plane/src python scripts/check_db.py &&
+      PYTHONPATH=services/control-plane/src python scripts/check_orm.py"
+
+  supabase-auto-migrate:
+    image: python:3.11-slim
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /workspace/services/control-plane/src
+    profiles:
+      - tools
+    command: >-
+      sh -c "python -m pip install --no-cache-dir -r requirements-dev.txt &&
+      python scripts/auto_migrate.py"
+
+  supabase-revision:
+    image: python:3.11-slim
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    env_file:
+      - .env
+    profiles:
+      - tools
+    command: >-
+      sh -c "python -m pip install --no-cache-dir -r requirements-dev.txt &&
+      alembic revision --autogenerate -m \"$${MIGRATION_MESSAGE:-schema change}\""
+
+  supabase-orm-check:
+    image: python:3.11-slim
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace:ro
+    env_file:
+      - .env
+    profiles:
+      - tools
+    command: >-
+      sh -c "python -m pip install --no-cache-dir -r requirements-dev.txt &&
+      PYTHONPATH=services/control-plane/src python scripts/check_orm.py"
 
 volumes:
   gem5-source:
