@@ -1,0 +1,28 @@
+name: baseline-x86-lru
+isa: x86
+cores: 4
+clock: 3GHz
+memory:
+  type: DDR4_2400_8x8
+  size: 8GiB
+caches:
+  l1i:
+    size: 32KiB
+    associativity: 8
+  l1d:
+    size: 32KiB
+    associativity: 8
+  l2:
+    size: 256KiB
+    associativity: 8
+    policy: lru
+  llc:
+    size: 8MiB
+    associativity: 16
+telemetry:
+  metrics:
+    - ipc
+    - mpki
+    - amal
+    - edp
+  deterministic_seed: 20260501

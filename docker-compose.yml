@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: intellicore-postgres
+    environment:
+      POSTGRES_DB: intellicore
+      POSTGRES_USER: intellicore
+      POSTGRES_PASSWORD: intellicore
+    ports:
+      - "5432:5432"
+    volumes:
+      - intellicore-postgres:/var/lib/postgresql/data
+      - ./infra/db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intellicore -d intellicore"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  intellicore-postgres:

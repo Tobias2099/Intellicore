@@ -1,0 +1,12 @@
+{
+  "name": "@intellicore/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared telemetry and simulation schemas for IntelliCore.",
+  "files": [
+    "schemas"
+  ],
+  "scripts": {
+    "lint": "node -e \"JSON.parse(require('fs').readFileSync('schemas/telemetry-event.schema.json'))\""
+  }
+}

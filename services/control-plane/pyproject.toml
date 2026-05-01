@@ -1,0 +1,12 @@
+[project]
+name = "intellicore-control"
+version = "0.1.0"
+description = "CLI and orchestration layer for IntelliCore simulation runs."
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.7",
+  "pyyaml>=6.0",
+]
+
+[project.scripts]
+intellicore = "intellicore_control.cli:app"

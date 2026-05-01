@@ -1,0 +1,19 @@
+{
+  "name": "intellicore",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MARL cache coordination research monorepo.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:dashboard": "npm --workspace apps/visual-stats run dev",
+    "build:dashboard": "npm --workspace apps/visual-stats run build",
+    "lint": "npm --workspaces --if-present run lint",
+    "test": "npm --workspaces --if-present run test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

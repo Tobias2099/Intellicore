@@ -1,0 +1,13 @@
+benchmarks:
+  - id: spec-cpu2017-mcf
+    suite: SPEC CPU 2017
+    category: memory-intensive
+    enabled_by_default: false
+  - id: stream-triad
+    suite: STREAM
+    category: bandwidth
+    enabled_by_default: true
+  - id: synthetic-stride
+    suite: IntelliCore Synthetic
+    category: predictable-prefetch
+    enabled_by_default: true

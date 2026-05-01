@@ -1,0 +1,35 @@
+[project]
+name = "intellicore-monorepo"
+version = "0.1.0"
+description = "Development workspace for IntelliCore services."
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.7",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.5",
+]
+training = [
+  "numpy>=1.26",
+]
+telemetry = [
+  "psycopg[binary]>=3.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+  "services/control-plane/tests",
+  "services/training/tests",
+]
+pythonpath = [
+  "services/control-plane/src",
+  "services/training/src",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

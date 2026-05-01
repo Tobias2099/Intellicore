@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intellicore.local/schemas/telemetry-event.schema.json",
+  "title": "TelemetryEvent",
+  "type": "object",
+  "required": ["run_id", "cycle", "core_id", "metric", "value"],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cycle": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "core_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "metric": {
+      "type": "string",
+      "enum": ["ipc", "mpki", "amal", "edp", "prefetch_accuracy", "inference_cycles"]
+    },
+    "value": {
+      "type": "number"
+    },
+    "cache_level": {
+      "type": "string",
+      "enum": ["l1i", "l1d", "l2", "llc"]
+    },
+    "tags": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

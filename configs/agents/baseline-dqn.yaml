@@ -1,0 +1,15 @@
+name: baseline-dqn-prefetcher
+agent_type: dqn
+target_cache_level: l2
+learning_rate: 0.0003
+discount_factor: 0.99
+replay_buffer_size: 50000
+reward_weights:
+  cache_hit: 1.0
+  useful_prefetch: 0.7
+  late_prefetch: -0.25
+  wasted_prefetch: -0.6
+  eviction_miss: -1.0
+inference:
+  max_cycles: 3
+  quantized: true
