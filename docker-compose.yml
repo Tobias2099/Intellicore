@@ -38,6 +38,32 @@ services:
     stdin_open: true
     tty: true
 
+  gem5-prebuilt:
+    build:
+      context: .
+      dockerfile: infra/docker/gem5-prebuilt.Dockerfile
+      args:
+        INSTALL_TORCH: "false"
+        GEM5_REPO: https://gem5.googlesource.com/public/gem5
+        GEM5_REF: v25.1.0.0
+        GEM5_CLONE_DEPTH: "1"
+        GEM5_ISA: X86
+        GEM5_BUILD_VARIANT: gem5.opt
+        GEM5_BUILD_JOBS: "2"
+    image: intellicore/gem5:local
+    container_name: intellicore-gem5-prebuilt
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      GEM5_ROOT: /opt/gem5
+      PYTHONPATH: /workspace/services/control-plane/src:/workspace/services/training/src
+    profiles:
+      - gem5
+    command: bash
+    stdin_open: true
+    tty: true
+
   supabase-check:
     image: python:3.11-slim
     working_dir: /workspace

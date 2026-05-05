@@ -169,6 +169,7 @@ The active Alembic schema creates:
 
 - `dev`: Long-running development container with Python 3.11, CPU PyTorch, C++ build tools, and gem5 dependencies.
 - `gem5-shell`: Interactive shell using the dev image, with gem5 source/build volumes mounted under `/opt/gem5`.
+- `gem5-prebuilt`: Interactive shell using a custom image with gem5 cloned and built under `/opt/gem5`.
 - `supabase-check`: One-shot database schema check container that verifies the Supabase telemetry database schema through `DATABASE_URL`.
 - `supabase-auto-migrate`: One-shot workflow that upgrades to head, detects SQLAlchemy model changes, generates a migration if needed, applies it, and runs checks.
 - `supabase-migrate`: One-shot migration container that runs `alembic upgrade head`, then runs schema and ORM checks.
@@ -206,6 +207,10 @@ docker compose --profile tools run --rm supabase-orm-check
 # Open an interactive gem5-oriented shell
 docker compose --profile gem5 run --rm gem5-shell
 
+# Build and run an image that already contains a compiled gem5 checkout
+docker compose --profile gem5 build gem5-prebuilt
+docker compose --profile gem5 run --rm gem5-prebuilt
+
 # Stop and remove containers
 docker compose down
 ```
@@ -239,7 +244,81 @@ On Windows, Docker Desktop is the usual way to provide the Docker engine, but th
 
 ## gem5 Workflow
 
-The Docker image includes gem5 build dependencies, but it does not clone gem5 automatically because the upstream simulator is large and should be versioned independently from this scaffold.
+By default, use the prebuilt gem5 image. It clones gem5 and builds `build/X86/gem5.opt` during the Docker image build. After a successful build, Docker automatically stores the image locally as `intellicore/gem5:local`; no manual `docker save` step is required unless you want to export the image to a tar file for backup or sharing.
+
+Build the image:
+
+```bash
+docker compose --profile gem5 build gem5-prebuilt
+```
+
+The first build can take a long time because it compiles gem5. A successful build ends with output similar to:
+
+```text
+intellicore/gem5:local  Built
+```
+
+Check that the image exists locally:
+
+```bash
+docker image ls intellicore/gem5:local
+```
+
+If the image is present, Docker prints a row for `intellicore/gem5` with the `local` tag. If only the table header appears, the image is not available locally and the build did not finish successfully or was removed.
+
+Run the built image:
+
+```bash
+docker compose --profile gem5 run --rm gem5-prebuilt
+```
+
+Once the shell prompt changes to something like `root@...:/workspace#`, you are inside the container. Test that gem5 is present and runnable:
+
+```bash
+$GEM5_ROOT/build/X86/gem5.opt --help
+ls -lh $GEM5_ROOT/build/X86/gem5.opt
+```
+
+Leave the container with:
+
+```bash
+exit
+```
+
+If you want to bypass Compose and run the saved image directly:
+
+```bash
+docker run --rm -it \
+  -v "$PWD:/workspace" \
+  -w /workspace \
+  -e GEM5_ROOT=/opt/gem5 \
+  -e PYTHONPATH=/workspace/services/control-plane/src:/workspace/services/training/src \
+  intellicore/gem5:local bash
+```
+
+To export the built image to a portable file:
+
+```bash
+docker save -o intellicore-gem5-local.tar intellicore/gem5:local
+```
+
+Load that file on another machine with:
+
+```bash
+docker load -i intellicore-gem5-local.tar
+```
+
+The default build pins gem5 to `v25.1.0.0` so the image is reproducible. To intentionally update gem5, change the `GEM5_REF` build arg to another gem5 release tag. You can also pass a branch such as `stable` when you explicitly want a moving upstream target:
+
+```bash
+docker compose --profile gem5 build --build-arg GEM5_REF=stable gem5-prebuilt
+```
+
+The prebuilt image defaults to `build/X86/gem5.opt`. Override `GEM5_ISA`, `GEM5_BUILD_VARIANT`, or `GEM5_BUILD_JOBS` to build another target or tune compile parallelism.
+
+### Backup Manual gem5 Build
+
+Use this fallback only if you are working in the lighter `dev` container and want to clone/build gem5 manually instead of using `gem5-prebuilt`.
 
 ```bash
 docker compose --profile dev up -d dev
