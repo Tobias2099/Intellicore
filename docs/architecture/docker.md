@@ -7,6 +7,7 @@ The Docker stack supports the required research toolchain:
 - CPU PyTorch for MARL training
 - C++ compiler, CMake, Ninja, and gdb
 - gem5 build dependencies such as SCons, protobuf, Boost, zlib, m4, and gperftools
+- optional prebuilt gem5 image with gem5 cloned and compiled under `/opt/gem5`
 
 ## Commands
 
@@ -21,6 +22,8 @@ docker compose --profile tools run --rm -e MIGRATION_MESSAGE="describe schema ch
 docker compose --profile tools run --rm supabase-migrate
 docker compose --profile tools run --rm supabase-check
 docker compose --profile tools run --rm supabase-orm-check
+docker compose --profile gem5 build gem5-prebuilt
+docker compose --profile gem5 run --rm gem5-prebuilt
 ```
 
 Prefer `docker compose exec dev ...` for repeated commands because it reuses the already-built dev container and does not reinstall Python dependencies each time. The `supabase-*` tool services are best for clean one-shot CI-style runs.
@@ -37,3 +40,35 @@ scons build/X86/gem5.opt -j"$(nproc)"
 ```
 
 The repository does not clone gem5 automatically during image build because gem5 is large and changes independently from the IntelliCore scaffold.
+
+## Prebuilt gem5 Image
+
+Use `gem5-prebuilt` when you want Docker to produce an image that already contains a cloned and built gem5 checkout. The default build clones the upstream gem5 repository into `/opt/gem5` and builds `build/X86/gem5.opt`.
+
+```bash
+docker compose --profile gem5 build gem5-prebuilt
+docker compose --profile gem5 run --rm gem5-prebuilt
+```
+
+Inside the container:
+
+```bash
+$GEM5_ROOT/build/X86/gem5.opt --help
+```
+
+To pin a branch, tag, or commit, pass `GEM5_REF` at build time:
+
+```bash
+docker compose --profile gem5 build --build-arg GEM5_REF=stable gem5-prebuilt
+```
+
+To build a different ISA or binary variant:
+
+```bash
+docker compose --profile gem5 build \
+  --build-arg GEM5_ISA=ARM \
+  --build-arg GEM5_BUILD_VARIANT=gem5.fast \
+  gem5-prebuilt
+```
+
+The `gem5-prebuilt` service intentionally does not mount the `gem5-source` volume over `/opt/gem5`; mounting a volume there would hide the gem5 checkout baked into the image.
