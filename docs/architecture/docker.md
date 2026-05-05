@@ -39,11 +39,11 @@ cd "$GEM5_ROOT"
 scons build/X86/gem5.opt -j"$(nproc)"
 ```
 
-The repository does not clone gem5 automatically during image build because gem5 is large and changes independently from the IntelliCore scaffold.
+The lightweight `dev` image does not clone gem5 during its image build; it only provides the dependencies needed to clone and build gem5 manually. The dedicated `gem5-prebuilt` image is the Docker path that intentionally clones upstream gem5 into `/opt/gem5` and compiles it during image build.
 
 ## Prebuilt gem5 Image
 
-Use `gem5-prebuilt` when you want Docker to produce an image that already contains a cloned and built gem5 checkout. The default build clones the upstream gem5 repository into `/opt/gem5` and builds `build/X86/gem5.opt`.
+Use `gem5-prebuilt` when you want Docker to produce an image that already contains a cloned and built gem5 checkout. The default build clones upstream gem5 tag `v25.1.0.0` into `/opt/gem5` and builds `build/X86/gem5.opt`.
 
 ```bash
 docker compose --profile gem5 build gem5-prebuilt
@@ -56,7 +56,7 @@ Inside the container:
 $GEM5_ROOT/build/X86/gem5.opt --help
 ```
 
-To pin a branch, tag, or commit, pass `GEM5_REF` at build time:
+To intentionally update gem5, pass a different release tag with `GEM5_REF` at build time. You can also pass a branch such as `stable` when you explicitly want a moving upstream target:
 
 ```bash
 docker compose --profile gem5 build --build-arg GEM5_REF=stable gem5-prebuilt

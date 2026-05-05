@@ -308,7 +308,7 @@ Load that file on another machine with:
 docker load -i intellicore-gem5-local.tar
 ```
 
-You can pin gem5 to a branch, tag, or commit:
+The default build pins gem5 to `v25.1.0.0` so the image is reproducible. To intentionally update gem5, change the `GEM5_REF` build arg to another gem5 release tag. You can also pass a branch such as `stable` when you explicitly want a moving upstream target:
 
 ```bash
 docker compose --profile gem5 build --build-arg GEM5_REF=stable gem5-prebuilt

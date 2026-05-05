@@ -45,7 +45,7 @@ services:
       args:
         INSTALL_TORCH: "false"
         GEM5_REPO: https://gem5.googlesource.com/public/gem5
-        GEM5_REF: ""
+        GEM5_REF: v25.1.0.0
         GEM5_CLONE_DEPTH: "1"
         GEM5_ISA: X86
         GEM5_BUILD_VARIANT: gem5.opt
