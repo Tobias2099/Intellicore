@@ -84,3 +84,4 @@ dist/
 # IntelliCore local artifacts
 artifacts/
 .env
+Intellicore/Intellicore/docs/IMPLEMENTATION-SUMMARY.md

@@ -64,6 +64,42 @@ services:
     stdin_open: true
     tty: true
 
+  gem5-sim:
+    build:
+      context: .
+      dockerfile: infra/docker/gem5-prebuilt.Dockerfile
+      args:
+        INSTALL_TORCH: "false"
+        GEM5_REPO: https://gem5.googlesource.com/public/gem5
+        GEM5_REF: v25.1.0.0
+        GEM5_CLONE_DEPTH: "1"
+        GEM5_ISA: X86
+        GEM5_BUILD_VARIANT: gem5.opt
+        GEM5_BUILD_JOBS: "2"
+    image: intellicore/gem5:local
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+      - ./m5out:/workspace/m5out
+    environment:
+      GEM5_ROOT: /opt/gem5
+      PYTHONPATH: /workspace/services/control-plane/src:/workspace/services/training/src
+    profiles:
+      - gem5
+    command: |
+      bash -c "
+      set -e
+      echo '=== Starting gem5 architecture simulation ==='
+      echo 'Config: configs/gem5/architecture.py'
+      echo 'Output directory: /workspace/m5out'
+      mkdir -p /workspace/m5out
+      /opt/gem5/build/X86/gem5.opt \
+        --outdir=/workspace/m5out \
+        configs/gem5/architecture.py
+      echo '=== Simulation completed ==='
+      echo 'Results saved to ./m5out/'
+      "
+
   supabase-check:
     image: python:3.11-slim
     working_dir: /workspace

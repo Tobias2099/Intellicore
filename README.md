@@ -244,79 +244,155 @@ On Windows, Docker Desktop is the usual way to provide the Docker engine, but th
 
 ## gem5 Workflow
 
-By default, use the prebuilt gem5 image. It clones gem5 and builds `build/X86/gem5.opt` during the Docker image build. After a successful build, Docker automatically stores the image locally as `intellicore/gem5:local`; no manual `docker save` step is required unless you want to export the image to a tar file for backup or sharing.
+### Architecture as Code
 
-Build the image:
+IntelliCore stores gem5 simulation architectures as Python configuration files in the repository under `configs/gem5/`. The baseline architecture (`architecture.py`) is a starting point for iterative development—it will evolve to include multi-core configurations, L2/L3 caches, and RL agent integration.
 
-```bash
-docker compose --profile gem5 build gem5-prebuilt
-```
+### No Local gem5 Installation Required
 
-The first build can take a long time because it compiles gem5. A successful build ends with output similar to:
+gem5 is **not** pushed to the GitHub repository. Instead, it's containerized in Docker. Users never need to install gem5 locally:
 
-```text
-intellicore/gem5:local  Built
-```
+- **First run**: Docker clones and compiles gem5 (~15-30 minutes, only happens once)
+- **Subsequent runs**: Uses the cached Docker image (seconds to start)
 
-Check that the image exists locally:
+This approach provides:
+- ✅ Reproducible builds across different machines
+- ✅ No dependency conflicts with local toolchains
+- ✅ Clean separation between project configs and simulator infrastructure
 
-```bash
-docker image ls intellicore/gem5:local
-```
+### Running Simulations
 
-If the image is present, Docker prints a row for `intellicore/gem5` with the `local` tag. If only the table header appears, the image is not available locally and the build did not finish successfully or was removed.
-
-Run the built image:
+#### Quickest Way
 
 ```bash
+./scripts/run-gem5-simple.sh
+```
+
+This script:
+1. Builds the Docker image on first run (gem5 compilation happens here)
+2. Runs the baseline architecture from `configs/gem5/architecture.py`
+3. Saves results to `./m5out/`
+
+**Timing**:
+- First run: ~15-30 minutes (includes gem5 build)
+- Subsequent runs: ~30-60 seconds
+
+#### Docker Commands
+
+Run the architecture simulation directly:
+
+```bash
+# One-shot simulation with cleanup
+docker compose --profile gem5 run --rm gem5-sim
+
+# Interactive shell to run multiple commands
 docker compose --profile gem5 run --rm gem5-prebuilt
 ```
 
-Once the shell prompt changes to something like `root@...:/workspace#`, you are inside the container. Test that gem5 is present and runnable:
+#### Custom Architectures
+
+To experiment with different configurations:
 
 ```bash
-$GEM5_ROOT/build/X86/gem5.opt --help
-ls -lh $GEM5_ROOT/build/X86/gem5.opt
+# Create a new architecture config
+cp configs/gem5/architecture.py configs/gem5/multicore-experiment.py
+# Edit multicore-experiment.py to add more cores, caches, etc.
+
+# Run your custom architecture
+./scripts/run-gem5-simple.sh --config configs/gem5/multicore-experiment.py
 ```
 
-Leave the container with:
+Or with docker-compose directly:
 
 ```bash
-exit
+docker compose --profile gem5 run --rm gem5-sim /bin/bash -c "
+/opt/gem5/build/X86/gem5.opt \
+  --outdir=/workspace/m5out \
+  configs/gem5/your-custom-architecture.py
+"
 ```
 
-If you want to bypass Compose and run the saved image directly:
+#### With Debug Flags
+
+To enable gem5 debug output:
 
 ```bash
-docker run --rm -it \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  -e GEM5_ROOT=/opt/gem5 \
-  -e PYTHONPATH=/workspace/services/control-plane/src:/workspace/services/training/src \
-  intellicore/gem5:local bash
+./scripts/run-gem5-simple.sh --args "--debug-flags=All"
 ```
 
-To export the built image to a portable file:
+#### Output Files
+
+After a successful simulation, check `./m5out/`:
+
+| File              | Description                                      |
+| ----------------- | ------------------------------------------------ |
+| `config.ini`      | Simulation configuration in INI format          |
+| `config.json`     | Simulation configuration in JSON format         |
+| `stats.txt`       | Performance statistics and simulation metrics   |
+| `system.dot`      | System architecture as a DOT graph (if enabled) |
+| `citations.bib`   | BibTeX citations for gem5 and related projects  |
+
+### Why Docker?
+
+The Docker-based approach simplifies the development workflow:
+
+- **Reproducibility**: Same setup everywhere (Linux, macOS, Windows with WSL2, cloud VMs)
+- **Version Pinning**: gem5 builds from a fixed release tag (currently v25.1.0.0)
+- **Fast Iteration**: Cached images mean no rebuilds after first run
+- **Clean CI/CD**: GitHub Actions and cloud runners don't need gem5 pre-installed
+
+### Customizing the gem5 Build
+
+To use a different gem5 version or ISA, edit the build arguments in `docker-compose.yml`:
+
+```yaml
+gem5-sim:
+  build:
+    args:
+      GEM5_REF: v26.0.0.0          # Change gem5 version
+      GEM5_ISA: ARM                # Change ISA (X86, ARM, RISCV, etc.)
+      GEM5_BUILD_VARIANT: gem5.fast  # Change build variant
+```
+
+Then rebuild:
 
 ```bash
-docker save -o intellicore-gem5-local.tar intellicore/gem5:local
+docker compose --profile gem5 build --no-cache gem5-sim
+./scripts/run-gem5-simple.sh --build
 ```
 
-Load that file on another machine with:
+### Interactive Development
+
+For hands-on experimentation:
 
 ```bash
-docker load -i intellicore-gem5-local.tar
+# Start an interactive shell with gem5 pre-compiled
+docker compose --profile gem5 run --rm gem5-prebuilt bash
+
+# Inside the container:
+cd /workspace
+/opt/gem5/build/X86/gem5.opt --help
+ls configs/gem5/
+
+# Run simulations with custom arguments
+/opt/gem5/build/X86/gem5.opt --outdir=m5out configs/gem5/architecture.py
 ```
 
-The default build pins gem5 to `v25.1.0.0` so the image is reproducible. To intentionally update gem5, change the `GEM5_REF` build arg to another gem5 release tag. You can also pass a branch such as `stable` when you explicitly want a moving upstream target:
+### Build Caching
+
+Docker caches image layers, so:
+
+1. **First `docker compose build`**: Clones and compiles gem5 (slow)
+2. **Subsequent builds**: Reuses cached layers (fast)
+3. **To force rebuild**: Add `--no-cache` flag
+
+If you want to ensure a fresh build:
 
 ```bash
-docker compose --profile gem5 build --build-arg GEM5_REF=stable gem5-prebuilt
+./scripts/run-gem5-simple.sh --build
 ```
 
-The prebuilt image defaults to `build/X86/gem5.opt`. Override `GEM5_ISA`, `GEM5_BUILD_VARIANT`, or `GEM5_BUILD_JOBS` to build another target or tune compile parallelism.
-
-### Backup Manual gem5 Build
+### Advanced: Manual Shell-Based Development
 
 Use this fallback only if you are working in the lighter `dev` container and want to clone/build gem5 manually instead of using `gem5-prebuilt`.
 
