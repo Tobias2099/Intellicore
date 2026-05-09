@@ -105,6 +105,15 @@ docker compose --profile dev run --rm dev bash scripts/docker-smoke.sh
 docker compose --profile tools run --rm supabase-check
 ```
 
+All `docker compose ...` commands in this README assume your working directory is the IntelliCore repo root (the folder containing `docker-compose.yml`).
+
+If your local workspace has an extra sibling folder (for example a separate `gem5/` checkout) and you are running from the parent directory, pass `-f` explicitly:
+
+```bash
+# From /home/zuhairq/Projects/Intellicore (parent folder)
+docker compose -f Intellicore/docker-compose.yml --profile gem5 run --rm gem5-architecture
+```
+
 Before running commands that touch telemetry, set `DATABASE_URL` in `.env` to the Supabase cloud Postgres connection string.
 
 ## Supabase Setup
