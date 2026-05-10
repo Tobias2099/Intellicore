@@ -45,7 +45,7 @@ services:
       args:
         INSTALL_TORCH: "false"
         GEM5_REPO: https://gem5.googlesource.com/public/gem5
-        GEM5_REF: v25.1.0.0
+        GEM5_REF: v23.0.0.1
         GEM5_CLONE_DEPTH: "1"
         GEM5_ISA: X86
         GEM5_BUILD_VARIANT: gem5.opt
@@ -63,6 +63,99 @@ services:
     command: bash
     stdin_open: true
     tty: true
+
+  gem5-init:
+    image: intellicore/dev:local
+    container_name: intellicore-gem5-init
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+      - gem5-source:/opt/gem5
+      - gem5-build:/opt/gem5/build
+    environment:
+      GEM5_ROOT: /opt/gem5
+      GEM5_ISA: X86
+      GEM5_REF: v23.0.0.1
+      GEM5_REPO: https://gem5.googlesource.com/public/gem5
+      PYTHONPATH: /workspace/services/control-plane/src:/workspace/services/training/src
+    profiles:
+      - gem5
+    command: >-
+      bash -lc 'set -euo pipefail;
+      if [ ! -d "$${GEM5_ROOT}/.git" ]; then
+        echo "[gem5-init] Cloning gem5 into $${GEM5_ROOT}...";
+        rm -rf /tmp/gem5-src;
+        git clone --depth 1 --branch "$${GEM5_REF}" "$${GEM5_REPO}" /tmp/gem5-src;
+        shopt -s dotglob;
+        rm -rf "$${GEM5_ROOT}"/* || true;
+        cp -a /tmp/gem5-src/. "$${GEM5_ROOT}/";
+      else
+        echo "[gem5-init] gem5 checkout already present in $${GEM5_ROOT} (skipping clone).";
+      fi;
+
+      if [ -f "$${GEM5_ROOT}/requirements.txt" ]; then
+        echo "[gem5-init] Installing gem5 python requirements...";
+        python -m pip install --no-cache-dir -r "$${GEM5_ROOT}/requirements.txt";
+      fi;
+
+      echo "[gem5-init] Building gem5 (build/$${GEM5_ISA}/gem5.opt)...";
+      cd "$${GEM5_ROOT}";
+      scons "build/$${GEM5_ISA}/gem5.opt" -j"$$(nproc)";
+
+      echo "[gem5-init] Done. Built: $${GEM5_ROOT}/build/$${GEM5_ISA}/gem5.opt";'
+
+  gem5-architecture:
+    image: intellicore/dev:local
+    container_name: intellicore-gem5-architecture
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+      - gem5-source:/opt/gem5
+      - gem5-build:/opt/gem5/build
+    environment:
+      GEM5_ROOT: /opt/gem5
+      GEM5_ISA: X86
+      PYTHONPATH: /workspace/services/control-plane/src:/workspace/services/training/src
+    profiles:
+      - gem5
+    command: >-
+      bash -lc 'set -euo pipefail;
+      if [ ! -d "$${GEM5_ROOT}/src/python/m5" ]; then
+        echo "gem5 source not found under $${GEM5_ROOT}." >&2;
+        echo "Populate the gem5 volumes first (non-interactive):" >&2;
+        echo "  docker compose --profile gem5 run --rm gem5-init" >&2;
+        echo "Populate the gem5 volumes first (interactive fallback):" >&2;
+        echo "  docker compose --profile gem5 run --rm gem5-shell" >&2;
+        exit 2;
+      fi;
+      if [ ! -d "$${GEM5_ROOT}/build/$${GEM5_ISA}/python" ]; then
+        detected_build="$$(find "$${GEM5_ROOT}/build" -maxdepth 2 -type d -name python -printf "%h\n" 2>/dev/null | head -n1 || true)";
+        if [ -n "$${detected_build}" ]; then
+          export GEM5_ISA="$$(basename "$${detected_build}")";
+        else
+          echo "gem5 python extension not found under $${GEM5_ROOT}/build. Build gem5 first." >&2;
+          exit 3;
+        fi;
+      fi;
+      export PYTHONPATH="$${GEM5_ROOT}/src/python:$${GEM5_ROOT}/build/$${GEM5_ISA}/python:$${PYTHONPATH}";
+      python configs/gem5/architecture.py;'
+
+  gem5-architecture-prebuilt:
+    image: intellicore/gem5:local
+    container_name: intellicore-gem5-architecture-prebuilt
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      GEM5_ROOT: /opt/gem5
+      GEM5_ISA: X86
+      PYTHONPATH: /workspace/services/control-plane/src:/workspace/services/training/src
+    profiles:
+      - gem5
+    command: >-
+      bash -lc 'set -euo pipefail;
+      export PYTHONPATH="$${GEM5_ROOT}/src/python:$${GEM5_ROOT}/build/$${GEM5_ISA}/python:$${PYTHONPATH}";
+      python configs/gem5/architecture.py;'
 
   supabase-check:
     image: python:3.11-slim
