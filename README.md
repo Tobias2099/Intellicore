@@ -220,6 +220,10 @@ docker compose --profile gem5 run --rm gem5-shell
 docker compose --profile gem5 build gem5-prebuilt
 docker compose --profile gem5 run --rm gem5-prebuilt
 
+# If the gem5 build fails at the final link step (often due to RAM pressure),
+# try lowering compile parallelism and re-running with plain logs:
+# docker compose --profile gem5 build --progress=plain --build-arg GEM5_BUILD_JOBS=1 gem5-prebuilt
+
 # Stop and remove containers
 docker compose down
 ```
@@ -279,6 +283,13 @@ Run the built image:
 
 ```bash
 docker compose --profile gem5 run --rm gem5-prebuilt
+```
+
+Run IntelliCore's baseline architecture config using the gem5 binary inside the container (writes outputs under `m5out/intellicore-arch` on the host):
+
+```bash
+docker compose --profile gem5 run --rm gem5-prebuilt bash -lc \
+  'cd "$GEM5_ROOT" && build/X86/gem5.opt --outdir=/workspace/m5out/intellicore-arch /workspace/configs/gem5/architecture.py'
 ```
 
 Once the shell prompt changes to something like `root@...:/workspace#`, you are inside the container. Test that gem5 is present and runnable:

@@ -34,6 +34,7 @@ RUN apt-get update \
         libelf-dev \
         libgoogle-perftools-dev \
         libhdf5-serial-dev \
+        lld \
         libpng-dev \
         libprotobuf-dev \
         libprotoc-dev \
@@ -70,7 +71,14 @@ RUN if [ -n "$GEM5_REF" ]; then \
         python -m pip install --no-cache-dir -r "$GEM5_ROOT/requirements.txt"; \
     fi \
     && cd "$GEM5_ROOT" \
-    && scons "build/$GEM5_ISA/$GEM5_BUILD_VARIANT" -j"$GEM5_BUILD_JOBS"
+    && SCONS_FLAGS="" \
+    && if scons --help 2>&1 | grep -q -- '--linker'; then \
+        SCONS_FLAGS="$SCONS_FLAGS --linker=lld"; \
+    fi \
+    && if scons --help 2>&1 | grep -q -- '--limit-ld-memory-usage'; then \
+        SCONS_FLAGS="$SCONS_FLAGS --limit-ld-memory-usage"; \
+    fi \
+    && scons $SCONS_FLAGS "build/$GEM5_ISA/$GEM5_BUILD_VARIANT" -j"$GEM5_BUILD_JOBS"
 
 RUN test -x "$GEM5_ROOT/build/$GEM5_ISA/$GEM5_BUILD_VARIANT" \
     && "$GEM5_ROOT/build/$GEM5_ISA/$GEM5_BUILD_VARIANT" --help >/dev/null
