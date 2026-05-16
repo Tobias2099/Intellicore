@@ -336,6 +336,21 @@ docker compose --profile gem5 build --build-arg GEM5_REF=stable gem5-prebuilt
 
 The prebuilt image defaults to `build/X86/gem5.opt`. Override `GEM5_ISA`, `GEM5_BUILD_VARIANT`, or `GEM5_BUILD_JOBS` to build another target or tune compile parallelism.
 
+### Multicore LRU Config
+
+`configs/gem5/multicore_LRU.py` defines a classic-cache multicore simulation with four X86 timing CPUs, private L1 instruction/data caches, a shared L2 cache, DDR3 memory, and LRU replacement policies.
+
+Run it with the prebuilt gem5 image:
+
+```bash
+docker compose --profile gem5 run --rm gem5-prebuilt \
+  bash -lc '$GEM5_ROOT/build/X86/gem5.opt configs/gem5/multicore_LRU.py'
+```
+
+Editing files under `configs/gem5/` does not require rebuilding the Docker image because the repository is mounted into the container at `/workspace`.
+
+gem5 writes simulation output to `m5out/`, including `m5out/stats.txt`.
+
 ### Backup Manual gem5 Build
 
 Use this fallback only if you are working in the lighter `dev` container and want to clone/build gem5 manually instead of using `gem5-prebuilt`.
