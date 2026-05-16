@@ -1,5 +1,3 @@
-import os
-
 import m5
 from m5.objects import *
 
@@ -74,14 +72,16 @@ for cpu in system.cpu:
 
 system.system_port = system.membus.cpu_side_ports
 
-gem5_root = os.environ.get("GEM5_ROOT", "/opt/gem5")
-binary = os.path.join(gem5_root, "tests/test-progs/hello/bin/x86/linux/hello")
+binary = "/workspace/benchmarks/bin/memory_patterns"
 
 system.workload = SEWorkload.init_compatible(binary)
 
+modes = ["sequential", "stride", "random"]
+selected_mode = modes[0]
+
 for cpu_id, cpu in enumerate(system.cpu):
   process = Process(pid=100 + cpu_id)
-  process.cmd = [binary]
+  process.cmd = [binary, selected_mode] # change selected_mode to run another pattern
   cpu.workload = process
   cpu.createThreads()
 
