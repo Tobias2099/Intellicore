@@ -357,6 +357,13 @@ docker compose --profile gem5 run --rm gem5-prebuilt \
   bash -lc 'mkdir -p /workspace/benchmarks/bin && g++ -O2 -std=c++17 -static /workspace/benchmarks/src/memory_patterns.cpp -o /workspace/benchmarks/bin/memory_patterns'
 ```
 
+Windows Git Bash or VS Code Bash variant:
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-prebuilt \
+  bash -lc 'mkdir -p /workspace/benchmarks/bin && g++ -O2 -std=c++17 -static /workspace/benchmarks/src/memory_patterns.cpp -o /workspace/benchmarks/bin/memory_patterns'
+```
+
 `configs/gem5/multicore_LRU.py` points gem5 at that executable:
 
 ```python
@@ -381,6 +388,13 @@ docker compose --profile gem5 run --rm gem5-prebuilt \
   bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/sequential /workspace/configs/gem5/multicore_LRU.py'
 ```
 
+Windows Git Bash or VS Code Bash variant:
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-prebuilt \
+  bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/sequential /workspace/configs/gem5/multicore_LRU.py'
+```
+
 Editing files under `configs/gem5/` does not require rebuilding the Docker image because the repository is mounted into the container at `/workspace`.
 
 gem5 writes simulation output under the directory passed to `--outdir`. The example above writes `m5out/sequential/stats.txt` on the host. If `--outdir` is omitted, gem5 uses the default `m5out/stats.txt`, which is fine for a smoke test but will be overwritten by the next run.
@@ -392,6 +406,16 @@ docker compose --profile gem5 run --rm gem5-prebuilt \
   bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/stride /workspace/configs/gem5/multicore_LRU.py'
 
 docker compose --profile gem5 run --rm gem5-prebuilt \
+  bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/random /workspace/configs/gem5/multicore_LRU.py'
+```
+
+Windows Git Bash or VS Code Bash variants:
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-prebuilt \
+  bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/stride /workspace/configs/gem5/multicore_LRU.py'
+
+MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-prebuilt \
   bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/random /workspace/configs/gem5/multicore_LRU.py'
 ```
 
