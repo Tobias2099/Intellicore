@@ -77,7 +77,7 @@ binary = "/workspace/benchmarks/bin/memory_patterns"
 system.workload = SEWorkload.init_compatible(binary)
 
 modes = ["sequential", "stride", "random"]
-selected_mode = modes[0]
+selected_mode = modes[1]
 benchmark_size = "1048576" # 2^20 elements, ~4 MiB total size
 
 for cpu_id, cpu in enumerate(system.cpu):
