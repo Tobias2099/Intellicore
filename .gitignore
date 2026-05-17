@@ -83,5 +83,6 @@ dist/
 
 # IntelliCore local artifacts
 artifacts/
+benchmarks/bin/
 m5out/
 .env
