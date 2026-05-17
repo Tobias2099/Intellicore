@@ -348,6 +348,8 @@ The config runs the synthetic C++ benchmark at `benchmarks/src/memory_patterns.c
 
 The benchmark accumulates each loaded value into `sum` and prints the result. The value of `sum` is not the performance metric; it prevents the compiler from optimizing away the memory reads.
 
+The benchmark accepts an optional second argument for the number of array elements. For gem5 runs, keep this much smaller than native runs because every simulated core launches its own process. The multicore config uses `1048576` elements by default, which is about 4 MiB of integer array data per process before random-mode index storage.
+
 Compile the benchmark inside the gem5 Docker container so gem5 receives a Linux executable:
 
 ```bash
@@ -366,7 +368,8 @@ The selected benchmark mode is passed through `process.cmd`:
 ```python
 modes = ["sequential", "stride", "random"]
 selected_mode = modes[0]
-process.cmd = [binary, selected_mode]
+benchmark_size = "1048576"
+process.cmd = [binary, selected_mode, benchmark_size]
 ```
 
 Change `selected_mode` to `modes[1]` for `stride` or `modes[2]` for `random`. With the current multicore config, every CPU runs the same benchmark mode.
