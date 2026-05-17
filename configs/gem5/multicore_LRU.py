@@ -78,10 +78,11 @@ system.workload = SEWorkload.init_compatible(binary)
 
 modes = ["sequential", "stride", "random"]
 selected_mode = modes[0]
+benchmark_size = "1048576" # 2^20 elements, ~4 MiB total size
 
 for cpu_id, cpu in enumerate(system.cpu):
   process = Process(pid=100 + cpu_id)
-  process.cmd = [binary, selected_mode] # change selected_mode to run another pattern
+  process.cmd = [binary, selected_mode, benchmark_size]
   cpu.workload = process
   cpu.createThreads()
 
