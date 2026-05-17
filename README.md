@@ -336,6 +336,70 @@ docker compose --profile gem5 build --build-arg GEM5_REF=stable gem5-prebuilt
 
 The prebuilt image defaults to `build/X86/gem5.opt`. Override `GEM5_ISA`, `GEM5_BUILD_VARIANT`, or `GEM5_BUILD_JOBS` to build another target or tune compile parallelism.
 
+### Multicore LRU Config
+
+`configs/gem5/multicore_LRU.py` defines a classic-cache multicore simulation with four X86 timing CPUs, private L1 instruction/data caches, a shared L2 cache, DDR3 memory, and LRU replacement policies.
+
+The config runs the synthetic C++ benchmark at `benchmarks/src/memory_patterns.cpp`. The benchmark allocates a large integer array and then reads it with one of three access patterns:
+
+- `sequential`: reads `arr[0]`, `arr[1]`, `arr[2]`, and so on. This has good spatial locality.
+- `stride`: reads every 16th integer, which is about one 64-byte cache line on common systems. This uses less of each fetched cache line.
+- `random`: shuffles an index array once, then reads `arr[idx[i]]`. This creates poor locality and should usually cause more cache misses.
+
+The benchmark accumulates each loaded value into `sum` and prints the result. The value of `sum` is not the performance metric; it prevents the compiler from optimizing away the memory reads.
+
+Compile the benchmark inside the gem5 Docker container so gem5 receives a Linux executable:
+
+```bash
+docker compose --profile gem5 run --rm gem5-prebuilt \
+  bash -lc 'mkdir -p /workspace/benchmarks/bin && g++ -O2 -std=c++17 -static /workspace/benchmarks/src/memory_patterns.cpp -o /workspace/benchmarks/bin/memory_patterns'
+```
+
+`configs/gem5/multicore_LRU.py` points gem5 at that executable:
+
+```python
+binary = "/workspace/benchmarks/bin/memory_patterns"
+```
+
+The selected benchmark mode is passed through `process.cmd`:
+
+```python
+modes = ["sequential", "stride", "random"]
+selected_mode = modes[0]
+process.cmd = [binary, selected_mode]
+```
+
+Change `selected_mode` to `modes[1]` for `stride` or `modes[2]` for `random`. With the current multicore config, every CPU runs the same benchmark mode.
+
+Run it with the prebuilt gem5 image:
+
+```bash
+docker compose --profile gem5 run --rm gem5-prebuilt \
+  bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/sequential /workspace/configs/gem5/multicore_LRU.py'
+```
+
+Editing files under `configs/gem5/` does not require rebuilding the Docker image because the repository is mounted into the container at `/workspace`.
+
+gem5 writes simulation output under the directory passed to `--outdir`. The example above writes `m5out/sequential/stats.txt` on the host. If `--outdir` is omitted, gem5 uses the default `m5out/stats.txt`, which is fine for a smoke test but will be overwritten by the next run.
+
+Use separate output folders when comparing modes:
+
+```bash
+docker compose --profile gem5 run --rm gem5-prebuilt \
+  bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/stride /workspace/configs/gem5/multicore_LRU.py'
+
+docker compose --profile gem5 run --rm gem5-prebuilt \
+  bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/random /workspace/configs/gem5/multicore_LRU.py'
+```
+
+The benchmark's own `cout` output appears in the gem5 run log. Cache and timing counters appear in `stats.txt`. Useful fields to compare include simulated time, instruction count, cache hits, cache misses, and cache miss rates:
+
+```bash
+grep -i "miss" m5out/sequential/stats.txt
+grep -i "miss" m5out/stride/stats.txt
+grep -i "miss" m5out/random/stats.txt
+```
+
 ### Backup Manual gem5 Build
 
 Use this fallback only if you are working in the lighter `dev` container and want to clone/build gem5 manually instead of using `gem5-prebuilt`.
