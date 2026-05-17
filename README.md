@@ -384,22 +384,22 @@ Change `selected_mode` to `modes[1]` for `stride` or `modes[2]` for `random`. Wi
 
 Run it with the prebuilt gem5 image, selecting eviction policy and access pattern.
 
-Example (LRU policy, stride pattern) — this writes outputs to `/workspace/m5out/LRU/stride` on the host:
+Example (LRU policy, stride pattern, delta prefetcher) — this writes outputs to `/workspace/m5out/LRU/stride` on the host:
 
 ```bash
-docker compose --profile gem5 run --rm -e POLICY=LRU -e MODE=stride gem5-prebuilt \
+docker compose --profile gem5 run --rm -e POLICY=LRU -e MODE=stride -e PREFETCH=delta gem5-prebuilt \
   bash -lc 'cd "$GEM5_ROOT" && \
     build/X86/gem5.opt --outdir=/workspace/m5out/$POLICY/$MODE \
-    /workspace/configs/gem5/multicore_LRU.py --repl $POLICY --mode $MODE'
+    /workspace/configs/gem5/multicore_LRU.py --repl $POLICY --mode $MODE --prefetch $PREFETCH'
 ```
 
-Template (substitute values):
+Template (substitute values; default prefetcher is `delta` — choose `none`, `stride`, `tagged`, or `delta`):
 
 ```bash
-docker compose --profile gem5 run --rm -e POLICY=<LRU|LFU|MRU> -e MODE=<sequential|stride|random> \
+docker compose --profile gem5 run --rm -e POLICY=<LRU|LFU|MRU> -e MODE=<sequential|stride|random> -e PREFETCH=<none|stride|tagged|delta> \
   gem5-prebuilt bash -lc 'cd "$GEM5_ROOT" && \
     build/X86/gem5.opt --outdir=/workspace/m5out/$POLICY/$MODE \
-    /workspace/configs/gem5/multicore_LRU.py --repl $POLICY --mode $MODE'
+    /workspace/configs/gem5/multicore_LRU.py --repl $POLICY --mode $MODE --prefetch $PREFETCH'
 ```
 
 Windows Git Bash or VS Code Bash variant (MSYS path conversion disabled):

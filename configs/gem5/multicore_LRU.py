@@ -10,6 +10,8 @@ parser.add_argument("--repl", choices=["LRU", "LFU", "MRU"], default="LRU",
           help="Replacement policy: LRU, LFU, or MRU")
 parser.add_argument("--mode", choices=["sequential", "stride", "random"],
           default="sequential", help="Memory access pattern")
+parser.add_argument("--prefetch", choices=["none", "stride", "tagged", "delta"],
+          default="delta", help="Prefetcher: none, stride, tagged, delta")
 args, unknown = parser.parse_known_args()
 
 # Map CLI name to the gem5 replacement-policy SimObject constructor name
@@ -25,8 +27,28 @@ try:
 except Exception:
   raise SystemExit(f"Replacement policy class for {args.repl} not found in m5.objects")
 
-# instantiate the selected replacement policy for use as default
-policy = ReplClass()
+# Do not instantiate a replacement-policy at module import time (can
+# trigger SimObject construction ordering issues). We'll instantiate
+# per-cache below after caches are created.
+# policy = ReplClass()
+
+# Map prefetch CLI to gem5 prefetcher classes
+_pf_map = {
+  "none": None,
+  "stride": "StridePrefetcher",
+  "tagged": "TaggedPrefetcher",
+  "delta": "DeltaCorrelatingPrefetcher",
+}
+
+pf_choice = args.prefetch
+if pf_choice == "none":
+  PrefClass = None
+else:
+  pf_class_name = _pf_map.get(pf_choice)
+  if pf_class_name and hasattr(m5obj, pf_class_name):
+    PrefClass = getattr(m5obj, pf_class_name)
+  else:
+    PrefClass = None
 
 class L1ICache(Cache):
   size = "32KiB"
@@ -36,7 +58,7 @@ class L1ICache(Cache):
   response_latency = 2
   mshrs = 4
   tgts_per_mshr = 20
-  replacement_policy = policy
+  replacement_policy = NULL
 
 class L1DCache(Cache):
   size = "32KiB"
@@ -46,7 +68,7 @@ class L1DCache(Cache):
   response_latency = 2
   mshrs = 4
   tgts_per_mshr = 20
-  replacement_policy = policy
+  replacement_policy = NULL
 
 class L2Cache(Cache):
   size = "512KiB"
@@ -56,7 +78,7 @@ class L2Cache(Cache):
   response_latency = 20
   mshrs = 20
   tgts_per_mshr = 12
-  replacement_policy = policy
+  replacement_policy = NULL
 
 system = System()
 
@@ -73,6 +95,7 @@ system.membus = SystemXBar()
 system.l2cache = L2Cache()
 system.l2cache.cpu_side = system.l2bus.mem_side_ports
 system.l2cache.mem_side = system.membus.cpu_side_ports
+
 # give the shared L2 its own replacement-policy instance
 system.l2cache.replacement_policy = ReplClass()
 
@@ -91,6 +114,19 @@ for cpu in system.cpu:
   # assign a fresh replacement-policy instance to each cache
   cpu.icache.replacement_policy = ReplClass()
   cpu.dcache.replacement_policy = ReplClass()
+
+  # attach prefetcher instance if requested
+  if PrefClass is not None:
+    try:
+      cpu.icache.prefetcher = PrefClass()
+    except Exception:
+      # some cache implementations expect a different attribute name or
+      # do not support prefetcher assignment; ignore if not supported
+      pass
+    try:
+      cpu.dcache.prefetcher = PrefClass()
+    except Exception:
+      pass
 
   cpu.icache.cpu_side = cpu.icache_port
   cpu.dcache.cpu_side = cpu.dcache_port
