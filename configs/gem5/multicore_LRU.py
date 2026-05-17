@@ -78,7 +78,7 @@ system.workload = SEWorkload.init_compatible(binary)
 
 modes = ["sequential", "stride", "random"]
 selected_mode = modes[0]
-benchmark_size = "1048576" #2^20 elements, 4MB total size (fits in L2 cache)
+benchmark_size = "1048576" # 2^20 elements, ~4 MiB total size
 
 for cpu_id, cpu in enumerate(system.cpu):
   process = Process(pid=100 + cpu_id)
