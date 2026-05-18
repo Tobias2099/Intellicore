@@ -381,18 +381,34 @@ process.cmd = [binary, selected_mode, benchmark_size]
 
 Change `selected_mode` to `modes[1]` for `stride` or `modes[2]` for `random`. With the current multicore config, every CPU runs the same benchmark mode.
 
-Run it with the prebuilt gem5 image:
+
+Run it with the prebuilt gem5 image, selecting eviction policy and access pattern.
+
+Example (LRU policy, stride pattern, delta prefetcher) — this writes outputs to `/workspace/m5out/LRU/stride` on the host:
 
 ```bash
-docker compose --profile gem5 run --rm gem5-prebuilt \
-  bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/sequential /workspace/configs/gem5/multicore_LRU.py'
+docker compose --profile gem5 run --rm -e POLICY=LRU -e MODE=stride -e PREFETCH=delta gem5-prebuilt \
+  bash -lc 'cd "$GEM5_ROOT" && \
+    build/X86/gem5.opt --outdir=/workspace/m5out/$POLICY/$MODE \
+    /workspace/configs/gem5/multicore_LRU.py --repl $POLICY --mode $MODE --prefetch $PREFETCH'
 ```
 
-Windows Git Bash or VS Code Bash variant:
+Template (substitute values; default prefetcher is `delta` — choose `none`, `stride`, `tagged`, or `delta`):
 
 ```bash
-MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-prebuilt \
-  bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/sequential /workspace/configs/gem5/multicore_LRU.py'
+docker compose --profile gem5 run --rm -e POLICY=<LRU|LFU|MRU> -e MODE=<sequential|stride|random> -e PREFETCH=<none|stride|tagged|delta> \
+  gem5-prebuilt bash -lc 'cd "$GEM5_ROOT" && \
+    build/X86/gem5.opt --outdir=/workspace/m5out/$POLICY/$MODE \
+    /workspace/configs/gem5/multicore_LRU.py --repl $POLICY --mode $MODE --prefetch $PREFETCH'
+```
+
+Windows Git Bash or VS Code Bash variant (MSYS path conversion disabled):
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm -e POLICY=LRU -e MODE=stride gem5-prebuilt \
+  bash -lc 'cd "$GEM5_ROOT" && \
+    build/X86/gem5.opt --outdir=/workspace/m5out/$POLICY/$MODE \
+    /workspace/configs/gem5/multicore_LRU.py --repl $POLICY --mode $MODE'
 ```
 
 Editing files under `configs/gem5/` does not require rebuilding the Docker image because the repository is mounted into the container at `/workspace`.
@@ -419,7 +435,22 @@ MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-prebuilt \
   bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/random /workspace/configs/gem5/multicore_LRU.py'
 ```
 
-The benchmark's own `cout` output appears in the gem5 run log. Cache and timing counters appear in `stats.txt`. Useful fields to compare include simulated time, instruction count, cache hits, cache misses, and cache miss rates:
+The benchmark's own `cout` output appears in the gem5 run log. Cache and timing counters appear in `stats.txt`.
+
+Use `scripts/summarize_stats.py` to print the important fields in a compact, readable form. By default it scans every `m5out/*/stats.txt` file and reports the benchmark name, L1D miss rate, L1D misses per CPU core, L2 miss rate, IPC, and simulated seconds:
+
+```bash
+docker compose --profile dev run --rm dev python scripts/summarize_stats.py
+```
+
+To summarize one run, pass either the run directory or the `stats.txt` file:
+
+```bash
+docker compose --profile dev run --rm dev python scripts/summarize_stats.py m5out/stride
+docker compose --profile dev run --rm dev python scripts/summarize_stats.py m5out/stride/stats.txt
+```
+
+For deeper manual inspection, grep the raw gem5 stats:
 
 ```bash
 grep -i "miss" m5out/sequential/stats.txt
