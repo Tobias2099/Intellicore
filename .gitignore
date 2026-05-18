@@ -85,4 +85,5 @@ dist/
 artifacts/
 benchmarks/bin/
 m5out/
+stats.txt
 .env
