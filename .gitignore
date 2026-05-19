@@ -84,6 +84,8 @@ dist/
 # IntelliCore local artifacts
 artifacts/
 benchmarks/bin/
+benchmarks/memory_patterns
+benchmarks/memory_patterns_check
 m5out/
 stats.txt
 .env
