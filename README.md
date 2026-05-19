@@ -340,11 +340,12 @@ The prebuilt image defaults to `build/X86/gem5.opt`. Override `GEM5_ISA`, `GEM5_
 
 `configs/gem5/multicore_LRU.py` defines a classic-cache multicore simulation with four X86 timing CPUs, private L1 instruction/data caches, a shared L2 cache, DDR3 memory, and LRU replacement policies.
 
-The config runs the synthetic C++ benchmark at `benchmarks/src/memory_patterns.cpp`. The benchmark allocates a large integer array and then reads it with one of three access patterns:
+The config runs the synthetic C++ benchmark at `benchmarks/src/memory_patterns.cpp`. The benchmark allocates a large integer array and then reads it with one of four access patterns:
 
 - `sequential`: reads `arr[0]`, `arr[1]`, `arr[2]`, and so on. This has good spatial locality.
 - `stride`: reads every 16th integer, which is about one 64-byte cache line on common systems. This uses less of each fetched cache line.
 - `random`: shuffles an index array once, then reads `arr[idx[i]]`. This creates poor locality and should usually cause more cache misses.
+- `hotcold`: repeatedly reuses a small hot region, streams through a larger cold region, then reuses the hot region again. This creates eviction pressure and is intended to make replacement-policy differences easier to observe.
 
 The benchmark accumulates each loaded value into `sum` and prints the result. The value of `sum` is not the performance metric; it prevents the compiler from optimizing away the memory reads.
 
@@ -373,13 +374,13 @@ binary = "/workspace/benchmarks/bin/memory_patterns"
 The selected benchmark mode is passed through `process.cmd`:
 
 ```python
-modes = ["sequential", "stride", "random"]
+modes = ["sequential", "stride", "random", "hotcold"]
 selected_mode = modes[0]
 benchmark_size = "1048576"
 process.cmd = [binary, selected_mode, benchmark_size]
 ```
 
-Change `selected_mode` to `modes[1]` for `stride` or `modes[2]` for `random`. With the current multicore config, every CPU runs the same benchmark mode.
+Change `selected_mode` to `modes[1]` for `stride`, `modes[2]` for `random`, or `modes[3]` for `hotcold`. With the current multicore config, every CPU runs the same benchmark mode.
 
 
 Run it with the prebuilt gem5 image, selecting eviction policy and access pattern.
@@ -396,7 +397,7 @@ docker compose --profile gem5 run --rm -e POLICY=LRU -e MODE=stride -e PREFETCH=
 Template (substitute values; default prefetcher is `delta` — choose `none`, `stride`, `tagged`, or `delta`):
 
 ```bash
-docker compose --profile gem5 run --rm -e POLICY=<LRU|LFU|MRU> -e MODE=<sequential|stride|random> -e PREFETCH=<none|stride|tagged|delta> \
+docker compose --profile gem5 run --rm -e POLICY=<LRU|LFU|MRU> -e MODE=<sequential|stride|random|hotcold> -e PREFETCH=<none|stride|tagged|delta> \
   gem5-prebuilt bash -lc 'cd "$GEM5_ROOT" && \
     build/X86/gem5.opt --outdir=/workspace/m5out/$POLICY/$MODE \
     /workspace/configs/gem5/multicore_LRU.py --repl $POLICY --mode $MODE --prefetch $PREFETCH'
@@ -456,6 +457,7 @@ For deeper manual inspection, grep the raw gem5 stats:
 grep -i "miss" m5out/sequential/stats.txt
 grep -i "miss" m5out/stride/stats.txt
 grep -i "miss" m5out/random/stats.txt
+grep -i "miss" m5out/hotcold/stats.txt
 ```
 
 ### Backup Manual gem5 Build

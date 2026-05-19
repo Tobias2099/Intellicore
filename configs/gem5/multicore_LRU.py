@@ -8,7 +8,7 @@ from m5.objects import *
 parser = argparse.ArgumentParser()
 parser.add_argument("--repl", choices=["LRU", "LFU", "MRU"], default="LRU",
           help="Replacement policy: LRU, LFU, or MRU")
-parser.add_argument("--mode", choices=["sequential", "stride", "random"],
+parser.add_argument("--mode", choices=["sequential", "stride", "random", "hotcold"],
           default="sequential", help="Memory access pattern")
 parser.add_argument("--prefetch", choices=["none", "stride", "tagged", "delta"],
           default="delta", help="Prefetcher: none, stride, tagged, delta")
@@ -145,7 +145,7 @@ binary = "/workspace/benchmarks/bin/memory_patterns"
 
 system.workload = SEWorkload.init_compatible(binary)
 
-modes = ["sequential", "stride", "random"]
+modes = ["sequential", "stride", "random", "hotcold"]
 selected_mode = args.mode
 benchmark_size = "1048576" # 2^20 elements, ~4 MiB total size
 
