@@ -13,7 +13,25 @@ enum class Mode
   SEQUENTIAL,
   RANDOM,
   STRIDE,
+  HOTCOLD,
 };
+
+const char *modeName(Mode mode)
+{
+  switch (mode)
+  {
+  case Mode::SEQUENTIAL:
+    return "Sequential";
+  case Mode::RANDOM:
+    return "Random";
+  case Mode::STRIDE:
+    return "Stride";
+  case Mode::HOTCOLD:
+    return "HotCold";
+  }
+
+  return "Unknown";
+}
 
 int main(int argc, char **argv)
 {
@@ -28,6 +46,8 @@ int main(int argc, char **argv)
       mode = Mode::RANDOM;
     else if (mode_str == "stride")
       mode = Mode::STRIDE;
+    else if (mode_str == "hotcold")
+      mode = Mode::HOTCOLD;
     else
     {
       cerr << "Unknown mode: " << mode_str << endl;
@@ -79,12 +99,38 @@ int main(int argc, char **argv)
     }
     break;
   }
+
+  case Mode::HOTCOLD:
+  {
+    const size_t cache_line_ints = 16; // 64-byte cache line / 4-byte int
+    const size_t rounds = 256;
+    const size_t hot_n = min(n, static_cast<size_t>(16 * 1024));      // 64 KiB
+    const size_t max_cold_n = static_cast<size_t>(32 * 1024);         // 128 KiB
+    const size_t cold_n = n > hot_n ? min(n - hot_n, max_cold_n) : 0;
+
+    for (size_t round = 0; round < rounds; round++)
+    {
+      for (size_t i = 0; i < hot_n; i++)
+      {
+        sum += arr[i];
+      }
+
+      for (size_t i = hot_n; i < hot_n + cold_n; i += cache_line_ints)
+      {
+        sum += arr[i];
+      }
+
+      for (size_t i = 0; i < hot_n; i++)
+      {
+        sum += arr[i];
+      }
+    }
+    break;
+  }
   }
 
   auto timeEnd = chrono::high_resolution_clock::now();
   auto duration = chrono::duration_cast<chrono::milliseconds>(timeEnd - timeStart).count();
 
-  cout << "Mode: " << (mode == Mode::SEQUENTIAL ? "Sequential" : mode == Mode::RANDOM ? "Random"
-                                                                                      : "Stride")
-       << ", Time: " << duration << " ms, Sum: " << sum << endl;
+  cout << "Mode: " << modeName(mode) << ", Time: " << duration << " ms, Sum: " << sum << endl;
 }
