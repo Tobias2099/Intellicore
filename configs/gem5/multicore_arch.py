@@ -12,6 +12,8 @@ parser.add_argument("--mode", choices=["sequential", "stride", "random", "hotcol
           default="sequential", help="Memory access pattern")
 parser.add_argument("--prefetch", choices=["none", "stride", "tagged", "delta"],
           default="delta", help="Prefetcher: none, stride, tagged, delta")
+parser.add_argument("--threads", type=int, default=4,
+          help="Worker threads spawned by the memory_patterns process")
 args, unknown = parser.parse_known_args()
 
 # Map CLI name to the gem5 replacement-policy SimObject constructor name
@@ -148,10 +150,12 @@ system.workload = SEWorkload.init_compatible(binary)
 modes = ["sequential", "stride", "random", "hotcold"]
 selected_mode = args.mode
 benchmark_size = "1048576" # 2^20 elements, ~4 MiB total size
+thread_count = str(args.threads)
 
-for cpu_id, cpu in enumerate(system.cpu):
-  process = Process(pid=100 + cpu_id)
-  process.cmd = [binary, selected_mode, benchmark_size]
+process = Process(pid=100)
+process.cmd = [binary, selected_mode, benchmark_size, thread_count]
+
+for cpu in system.cpu:
   cpu.workload = process
   cpu.createThreads()
 
