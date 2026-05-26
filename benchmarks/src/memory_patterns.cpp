@@ -4,6 +4,7 @@
 #include <numeric>
 #include <random>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace std;
@@ -56,8 +57,9 @@ int main(int argc, char **argv)
   }
 
   const size_t n = argc > 2 ? std::stoull(argv[2]) : 64 * 1024 * 1024;
+  const size_t thread_count = argc > 3 ? max<size_t>(1, std::stoull(argv[3])) : 1;
   vector<int> arr(n, 1);
-  volatile size_t sum = 0;
+  vector<size_t> partial_sums(thread_count, 0);
 
   vector<size_t> idx;
   if (mode == Mode::RANDOM)
@@ -70,67 +72,99 @@ int main(int argc, char **argv)
 
   auto timeStart = chrono::high_resolution_clock::now();
 
-  switch (mode)
-  {
-  case Mode::SEQUENTIAL:
-    for (size_t i = 0; i < n; i++)
-    {
-      sum += arr[i];
-    }
-    break;
+  auto range_begin = [n, thread_count](size_t thread_id) {
+    return (n * thread_id) / thread_count;
+  };
+  auto range_end = [n, thread_count](size_t thread_id) {
+    return (n * (thread_id + 1)) / thread_count;
+  };
 
-  case Mode::RANDOM:
-    for (size_t i = 0; i < n; i++)
-    {
-      sum += arr[idx[i]];
-    }
-    break;
+  auto worker = [&](size_t thread_id) {
+    size_t local_sum = 0;
 
-  case Mode::STRIDE:
-  {
-    const size_t stride = 16;
-    // sum all elements using stride accesses
-    for (size_t offset = 0; offset < stride; offset++)
+    switch (mode)
     {
-      for (size_t i = offset; i < n; i += stride)
+    case Mode::SEQUENTIAL:
+      for (size_t i = range_begin(thread_id); i < range_end(thread_id); i++)
       {
-        sum += arr[i];
+        local_sum += arr[i];
       }
+      break;
+
+    case Mode::RANDOM:
+      for (size_t i = range_begin(thread_id); i < range_end(thread_id); i++)
+      {
+        local_sum += arr[idx[i]];
+      }
+      break;
+
+    case Mode::STRIDE:
+    {
+      const size_t stride = 16;
+      for (size_t offset = thread_id; offset < stride; offset += thread_count)
+      {
+        for (size_t i = offset; i < n; i += stride)
+        {
+          local_sum += arr[i];
+        }
+      }
+      break;
     }
-    break;
+
+    case Mode::HOTCOLD:
+    {
+      const size_t cache_line_ints = 16; // 64-byte cache line / 4-byte int
+      const size_t rounds = 256;
+      const size_t hot_n = min(n, static_cast<size_t>(16 * 1024)); // 64 KiB
+      const size_t max_cold_n = static_cast<size_t>(32 * 1024);    // 128 KiB
+      const size_t cold_n = n > hot_n ? min(n - hot_n, max_cold_n) : 0;
+
+      const size_t hot_begin = (hot_n * thread_id) / thread_count;
+      const size_t hot_end = (hot_n * (thread_id + 1)) / thread_count;
+      const size_t cold_begin = hot_n + (cold_n * thread_id) / thread_count;
+      const size_t cold_end = hot_n + (cold_n * (thread_id + 1)) / thread_count;
+
+      for (size_t round = 0; round < rounds; round++)
+      {
+        for (size_t i = hot_begin; i < hot_end; i++)
+        {
+          local_sum += arr[i];
+        }
+
+        for (size_t i = cold_begin; i < cold_end; i += cache_line_ints)
+        {
+          local_sum += arr[i];
+        }
+
+        for (size_t i = hot_begin; i < hot_end; i++)
+        {
+          local_sum += arr[i];
+        }
+      }
+      break;
+    }
+    }
+
+    partial_sums[thread_id] = local_sum;
+  };
+
+  vector<thread> workers;
+  workers.reserve(thread_count);
+  for (size_t thread_id = 0; thread_id < thread_count; thread_id++)
+  {
+    workers.emplace_back(worker, thread_id);
   }
 
-  case Mode::HOTCOLD:
+  for (thread &worker_thread : workers)
   {
-    const size_t cache_line_ints = 16; // 64-byte cache line / 4-byte int
-    const size_t rounds = 256;
-    const size_t hot_n = min(n, static_cast<size_t>(16 * 1024));      // 64 KiB
-    const size_t max_cold_n = static_cast<size_t>(32 * 1024);         // 128 KiB
-    const size_t cold_n = n > hot_n ? min(n - hot_n, max_cold_n) : 0;
-
-    for (size_t round = 0; round < rounds; round++)
-    {
-      for (size_t i = 0; i < hot_n; i++)
-      {
-        sum += arr[i];
-      }
-
-      for (size_t i = hot_n; i < hot_n + cold_n; i += cache_line_ints)
-      {
-        sum += arr[i];
-      }
-
-      for (size_t i = 0; i < hot_n; i++)
-      {
-        sum += arr[i];
-      }
-    }
-    break;
+    worker_thread.join();
   }
-  }
+
+  volatile size_t sum = accumulate(partial_sums.begin(), partial_sums.end(), size_t{0});
 
   auto timeEnd = chrono::high_resolution_clock::now();
   auto duration = chrono::duration_cast<chrono::milliseconds>(timeEnd - timeStart).count();
 
-  cout << "Mode: " << modeName(mode) << ", Time: " << duration << " ms, Sum: " << sum << endl;
+  cout << "Mode: " << modeName(mode) << ", Threads: " << thread_count
+       << ", Time: " << duration << " ms, Sum: " << sum << endl;
 }
