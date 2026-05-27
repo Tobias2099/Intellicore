@@ -122,6 +122,20 @@ Summarize a completed run:
 py scripts/summarize_stats.py m5out/parsec/blackscholes/simsmall/LRU/delta
 ```
 
+Normal gem5/PARSEC SE-mode output may include warnings such as ignored
+`mprotect`/`rseq` syscalls and:
+
+```text
+Can't open /dev/mem: No such file or directory
+```
+
+Those messages are expected in syscall-emulation mode. A run is considered
+successful when gem5 exits with a message like:
+
+```text
+Exiting @ tick ... because exiting with last active thread context
+```
+
 ## Full-System Path
 
 The upstream gem5 PARSEC tutorial uses gem5art, a Linux kernel, and a PARSEC

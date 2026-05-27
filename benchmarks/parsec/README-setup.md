@@ -160,3 +160,17 @@ If `py` is not available:
 ```bash
 python scripts/summarize_stats.py m5out/parsec/blackscholes/simsmall/LRU/delta
 ```
+
+It is normal to see gem5/PARSEC SE-mode warnings such as ignored `mprotect` or
+`rseq` syscalls and:
+
+```text
+Can't open /dev/mem: No such file or directory
+```
+
+That message comes from PARSEC hook support running without a full Linux guest.
+The important success signal is:
+
+```text
+Exiting @ tick ... because exiting with last active thread context
+```
