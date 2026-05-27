@@ -86,6 +86,16 @@ artifacts/
 benchmarks/bin/
 benchmarks/memory_patterns
 benchmarks/memory_patterns_check
+benchmarks/parsec/bin/
+benchmarks/parsec/install/
+benchmarks/parsec/lib/
+benchmarks/parsec/source/
+benchmarks/parsec/inputs/*/
+!benchmarks/parsec/inputs/README.md
+benchmarks/parsec/disk-image/*.img
+benchmarks/parsec/disk-image/*.iso
+benchmarks/parsec/disk-image/*.qcow2
+benchmarks/parsec/disk-image/output-*/
 m5out/
 stats.txt
 .env

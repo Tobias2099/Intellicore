@@ -11,3 +11,27 @@ benchmarks:
     suite: IntelliCore Synthetic
     category: predictable-prefetch
     enabled_by_default: true
+  - id: parsec-blackscholes
+    suite: PARSEC
+    category: data-parallel
+    enabled_by_default: false
+  - id: parsec-canneal
+    suite: PARSEC
+    category: memory-intensive
+    enabled_by_default: false
+  - id: parsec-dedup
+    suite: PARSEC
+    category: pipeline
+    enabled_by_default: false
+  - id: parsec-fluidanimate
+    suite: PARSEC
+    category: spatial-simulation
+    enabled_by_default: false
+  - id: parsec-streamcluster
+    suite: PARSEC
+    category: online-clustering
+    enabled_by_default: false
+  - id: parsec-swaptions
+    suite: PARSEC
+    category: monte-carlo
+    enabled_by_default: false

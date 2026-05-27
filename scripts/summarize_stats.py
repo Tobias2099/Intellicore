@@ -36,6 +36,12 @@ def parse_stats(path: Path) -> dict[str, float]:
 
 def benchmark_name(path: Path) -> str:
     if path.name == "stats.txt" and path.parent.name:
+        parts = path.parts
+        if "m5out" in parts:
+            m5out_index = parts.index("m5out")
+            run_parts = parts[m5out_index + 1 : -1]
+            if run_parts:
+                return "/".join(run_parts)
         return path.parent.name
     return path.stem
 
@@ -118,14 +124,18 @@ def summarize(path: Path) -> str:
 
 
 def default_stats_files(root: Path) -> list[Path]:
-    return sorted(root.glob("m5out/*/stats.txt"))
+    return sorted(root.glob("m5out/**/stats.txt"))
 
 
 def stats_files(paths: list[Path]) -> list[Path]:
     files: list[Path] = []
     for path in paths:
         if path.is_dir():
-            files.append(path / "stats.txt")
+            direct_stats = path / "stats.txt"
+            if direct_stats.exists():
+                files.append(direct_stats)
+            else:
+                files.extend(sorted(path.glob("**/stats.txt")))
         else:
             files.append(path)
     return files
@@ -139,7 +149,7 @@ def main() -> int:
         "stats_files",
         nargs="*",
         type=Path,
-        help="stats.txt file(s) or run directories to summarize. Defaults to m5out/*/stats.txt.",
+        help="stats.txt file(s) or run directories to summarize. Defaults to m5out/**/stats.txt.",
     )
     args = parser.parse_args()
 

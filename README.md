@@ -438,7 +438,7 @@ MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-prebuilt \
 
 The benchmark's own `cout` output appears in the gem5 run log. Cache and timing counters appear in `stats.txt`.
 
-Use `scripts/summarize_stats.py` to print the important fields in a compact, readable form. By default it scans every `m5out/*/stats.txt` file and reports the benchmark name, L1D miss rate, L1D misses per CPU core, L2 miss rate, IPC, and simulated seconds:
+Use `scripts/summarize_stats.py` to print the important fields in a compact, readable form. By default it scans every `m5out/**/stats.txt` file and reports the benchmark name, L1D miss rate, L1D misses per CPU core, L2 miss rate, IPC, and simulated seconds:
 
 ```bash
 docker compose --profile dev run --rm dev python scripts/summarize_stats.py
@@ -450,6 +450,45 @@ To summarize one run, pass either the run directory or the `stats.txt` file:
 docker compose --profile dev run --rm dev python scripts/summarize_stats.py m5out/stride
 docker compose --profile dev run --rm dev python scripts/summarize_stats.py m5out/stride/stats.txt
 ```
+
+### PARSEC Benchmarks
+
+PARSEC integration lives under `benchmarks/parsec/`. IntelliCore tracks the
+metadata, scripts, and documentation there, but does not commit PARSEC source,
+compiled binaries, disk images, or large input sets.
+
+For the first SE-mode smoke test, place or build these local files:
+
+```text
+benchmarks/parsec/bin/blackscholes
+benchmarks/parsec/inputs/simsmall/blackscholes/in_4K.txt
+```
+
+If you have a PARSEC source tree available, place it at
+`benchmarks/parsec/source/` or set `PARSEC_ROOT`, then build inside the gem5
+container:
+
+```bash
+docker compose --profile gem5 run --rm gem5-prebuilt \
+  bash /workspace/benchmarks/parsec/build.sh blackscholes
+```
+
+Run the PARSEC `blackscholes` smoke test:
+
+```bash
+bash benchmarks/parsec/run-gem5.sh blackscholes simsmall
+```
+
+This invokes `configs/gem5/multicore_arch.py` with `--benchmark parsec` and
+writes results under:
+
+```text
+m5out/parsec/blackscholes/simsmall/<policy>/<prefetch>/stats.txt
+```
+
+The upstream gem5 tutorial's full-system path is scaffolded under
+`benchmarks/parsec/disk-image/`. Use that path when you want a PARSEC disk image,
+Linux guest execution, and closer alignment with gem5art-style experiments.
 
 For deeper manual inspection, grep the raw gem5 stats:
 

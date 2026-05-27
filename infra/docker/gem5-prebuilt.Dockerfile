@@ -28,12 +28,15 @@ RUN apt-get update \
         g++ \
         gcc \
         gdb \
+        gettext \
         git \
         libboost-all-dev \
         libcapstone-dev \
         libelf-dev \
         libgoogle-perftools-dev \
         libhdf5-serial-dev \
+        libxi-dev \
+        libxmu-dev \
         lld \
         libpng-dev \
         libprotobuf-dev \
