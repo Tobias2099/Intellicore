@@ -1,0 +1,157 @@
+workloads:
+  blackscholes:
+    status: supported-se
+    category: data-parallel
+    run_exec: bin/blackscholes
+    binary: /workspace/benchmarks/parsec/bin/blackscholes
+    inputs:
+      simsmall:
+        args: ["{threads}", "in_4K.txt", "prices.txt"]
+      simmedium:
+        args: ["{threads}", "in_16K.txt", "prices.txt"]
+      simlarge:
+        args: ["{threads}", "in_64K.txt", "prices.txt"]
+
+  bodytrack:
+    status: supported-se
+    category: computer-vision
+    run_exec: bin/bodytrack
+    binary: /workspace/benchmarks/parsec/bin/bodytrack
+    inputs:
+      simsmall:
+        args: ["sequenceB_1", "4", "1", "1000", "5", "0", "{threads}"]
+      simmedium:
+        args: ["sequenceB_2", "4", "2", "2000", "5", "0", "{threads}"]
+      simlarge:
+        args: ["sequenceB_4", "4", "4", "4000", "5", "0", "{threads}"]
+
+  canneal:
+    status: supported-se
+    category: memory-intensive
+    run_exec: bin/canneal
+    binary: /workspace/benchmarks/parsec/bin/canneal
+    inputs:
+      simsmall:
+        args: ["{threads}", "10000", "2000", "100000.nets", "32"]
+      simmedium:
+        args: ["{threads}", "15000", "2000", "200000.nets", "64"]
+      simlarge:
+        args: ["{threads}", "15000", "2000", "400000.nets", "128"]
+
+  dedup:
+    status: supported-se
+    category: pipeline
+    run_exec: bin/dedup
+    binary: /workspace/benchmarks/parsec/bin/dedup
+    inputs:
+      simsmall:
+        args: ["-c", "-p", "-v", "-t", "{threads}", "-i", "media.dat", "-o", "output.dat.ddp"]
+      simmedium:
+        args: ["-c", "-p", "-v", "-t", "{threads}", "-i", "media.dat", "-o", "output.dat.ddp"]
+      simlarge:
+        args: ["-c", "-p", "-v", "-t", "{threads}", "-i", "media.dat", "-o", "output.dat.ddp"]
+
+  facesim:
+    status: supported-se
+    category: simulation
+    run_exec: bin/facesim
+    binary: /workspace/benchmarks/parsec/bin/facesim
+    inputs:
+      simsmall:
+        args: ["-timing", "-threads", "{threads}"]
+      simmedium:
+        args: ["-timing", "-threads", "{threads}"]
+      simlarge:
+        args: ["-timing", "-threads", "{threads}"]
+
+  ferret:
+    status: supported-se
+    category: content-similarity
+    run_exec: bin/ferret
+    binary: /workspace/benchmarks/parsec/bin/ferret
+    inputs:
+      simsmall:
+        args: ["corel", "lsh", "queries", "10", "20", "{threads}", "output.txt"]
+      simmedium:
+        args: ["corel", "lsh", "queries", "10", "20", "{threads}", "output.txt"]
+      simlarge:
+        args: ["corel", "lsh", "queries", "10", "20", "{threads}", "output.txt"]
+
+  fluidanimate:
+    status: supported-se
+    category: spatial-simulation
+    run_exec: bin/fluidanimate
+    binary: /workspace/benchmarks/parsec/bin/fluidanimate
+    inputs:
+      simsmall:
+        args: ["{threads}", "5", "in_35K.fluid", "out.fluid"]
+      simmedium:
+        args: ["{threads}", "5", "in_100K.fluid", "out.fluid"]
+      simlarge:
+        args: ["{threads}", "5", "in_300K.fluid", "out.fluid"]
+
+  freqmine:
+    status: supported-se
+    category: data-mining
+    run_exec: bin/freqmine
+    binary: /workspace/benchmarks/parsec/bin/freqmine
+    env:
+      OMP_NUM_THREADS: "{threads}"
+    inputs:
+      simsmall:
+        args: ["kosarak_250k.dat", "220"]
+      simmedium:
+        args: ["kosarak_500k.dat", "410"]
+      simlarge:
+        args: ["kosarak_990k.dat", "790"]
+
+  streamcluster:
+    status: supported-se
+    category: online-clustering
+    run_exec: bin/streamcluster
+    binary: /workspace/benchmarks/parsec/bin/streamcluster
+    needs_input_dir: false
+    inputs:
+      simsmall:
+        args: ["10", "20", "32", "4096", "4096", "1000", "none", "output.txt", "{threads}"]
+      simmedium:
+        args: ["10", "20", "64", "8192", "8192", "1000", "none", "output.txt", "{threads}"]
+      simlarge:
+        args: ["10", "20", "128", "16384", "16384", "1000", "none", "output.txt", "{threads}"]
+
+  swaptions:
+    status: supported-se
+    category: monte-carlo
+    run_exec: bin/swaptions
+    binary: /workspace/benchmarks/parsec/bin/swaptions
+    needs_input_dir: false
+    inputs:
+      simsmall:
+        args: ["-ns", "16", "-sm", "10000", "-nt", "{threads}"]
+      simmedium:
+        args: ["-ns", "32", "-sm", "20000", "-nt", "{threads}"]
+      simlarge:
+        args: ["-ns", "64", "-sm", "40000", "-nt", "{threads}"]
+
+  x264:
+    status: supported-se
+    category: media-encoding
+    run_exec: bin/x264
+    binary: /workspace/benchmarks/parsec/bin/x264
+    inputs:
+      simsmall:
+        args: ["--quiet", "--qp", "20", "--partitions", "b8x8,i4x4", "--ref", "5", "--direct", "auto", "--b-pyramid", "--weightb", "--mixed-refs", "--no-fast-pskip", "--me", "umh", "--subme", "7", "--analyse", "b8x8,i4x4", "--threads", "{threads}", "-o", "eledream.264", "eledream_640x360_8.y4m"]
+      simmedium:
+        args: ["--quiet", "--qp", "20", "--partitions", "b8x8,i4x4", "--ref", "5", "--direct", "auto", "--b-pyramid", "--weightb", "--mixed-refs", "--no-fast-pskip", "--me", "umh", "--subme", "7", "--analyse", "b8x8,i4x4", "--threads", "{threads}", "-o", "eledream.264", "eledream_640x360_32.y4m"]
+      simlarge:
+        args: ["--quiet", "--qp", "20", "--partitions", "b8x8,i4x4", "--ref", "5", "--direct", "auto", "--b-pyramid", "--weightb", "--mixed-refs", "--no-fast-pskip", "--me", "umh", "--subme", "7", "--analyse", "b8x8,i4x4", "--threads", "{threads}", "-o", "eledream.264", "eledream_640x360_128.y4m"]
+
+  raytrace:
+    status: deferred
+    category: rendering
+    reason: requires gem5 Docker image rebuild with Mesa/X11 development packages
+
+  vips:
+    status: deferred
+    category: image-processing
+    reason: requires gem5 Docker image rebuild with gettext support

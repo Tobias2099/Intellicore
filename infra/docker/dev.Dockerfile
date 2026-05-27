@@ -20,9 +20,12 @@ RUN apt-get update \
         g++ \
         gcc \
         gdb \
+        gettext \
         git \
         libboost-all-dev \
         libgoogle-perftools-dev \
+        libxi-dev \
+        libxmu-dev \
         libpng-dev \
         libprotobuf-dev \
         libprotoc-dev \
