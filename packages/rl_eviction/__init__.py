@@ -5,7 +5,7 @@ environment interface suitable for integrating as a cache eviction
 policy within gem5 (integration not included here).
 """
 from .agent import RLEvictionAgent
-from .env import CacheEnv
+from .env import CacheEnv, TraceEnv
 from .config import DEFAULT_CONFIG
 
-__all__ = ["RLEvictionAgent", "CacheEnv", "DEFAULT_CONFIG"]
+__all__ = ["RLEvictionAgent", "CacheEnv", "TraceEnv", "DEFAULT_CONFIG"]
