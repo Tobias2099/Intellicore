@@ -170,16 +170,25 @@ def ensure_input_archives(inputs: list[str], force_download: bool) -> None:
 
 
 def copy_runtime_libraries() -> None:
+    """Copy PARSEC hook libraries for optional hook-based builds.
+
+    The SE-mode benchmark path defaults to gcc-pthreads, which does not need
+    libhooks. Keep this helper for explicit PARSEC_BUILD_CONFIG=gcc-hooks
+    workflows without making hook libraries mandatory.
+    """
     runtime_dir = PARSEC_DIR / "lib"
     runtime_dir.mkdir(parents=True, exist_ok=True)
     docker_bash(
         "set -e; "
         "src=/parsec-source/pkgs/libs/hooks/inst/amd64-linux.gcc-hooks/lib/libhooks.so.0.0.0; "
-        "test -f \"$src\"; "
+        "if [ -f \"$src\" ]; then "
         "mkdir -p /workspace/benchmarks/parsec/lib; "
         "cp \"$src\" /workspace/benchmarks/parsec/lib/libhooks.so.0.0.0; "
         "cp \"$src\" /workspace/benchmarks/parsec/lib/libhooks.so.0; "
-        "cp \"$src\" /workspace/benchmarks/parsec/lib/libhooks.so"
+        "cp \"$src\" /workspace/benchmarks/parsec/lib/libhooks.so; "
+        "else "
+        "echo 'PARSEC hook runtime not present; skipping optional libhooks copy.'; "
+        "fi"
     )
 
 

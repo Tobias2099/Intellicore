@@ -30,7 +30,7 @@ If you run Docker commands manually from Git Bash, prefix them with
 
 ## Prepare Workloads
 
-Prepare the currently practical PARSEC set with `simsmall` inputs:
+Prepare the PARSEC set with `simsmall` inputs:
 
 ```bash
 py benchmarks/parsec/setup_parsec.py --workload all --input simsmall --keep-going
@@ -48,11 +48,11 @@ This command:
 - clones `darchr/parsec-benchmark` into that volume
 - downloads PARSEC simulator inputs from the working GitHub mirror
 - applies the `dedup` GCC compatibility patch
-- builds workloads
+- builds workloads with PARSEC's `gcc-pthreads` config
 - extracts selected input archives
 - copies binaries and inputs into `benchmarks/parsec/`
 
-Prepared successfully with `simsmall` inputs:
+PARSEC SE-mode workloads tracked by IntelliCore:
 
 ```text
 blackscholes
@@ -63,21 +63,17 @@ facesim
 ferret
 fluidanimate
 freqmine
+raytrace
 streamcluster
 swaptions
+vips
 x264
 ```
 
-Deferred for now:
-
-```text
-raytrace
-vips
-```
-
-`raytrace` and `vips` need extra OS packages in the gem5 Docker image. The
-Dockerfiles include those packages now, but preparing those workloads requires
-rebuilding `gem5-prebuilt`, which may take a long time.
+If your local `gem5-prebuilt` image predates the PARSEC dependency updates,
+`raytrace` and `vips` may fail to prepare until the image is rebuilt. The
+Dockerfiles include their needed packages, but rebuilding `gem5-prebuilt` may
+take a long time.
 
 ## Useful Setup Variants
 
@@ -103,6 +99,12 @@ Force a rebuild:
 
 ```bash
 py benchmarks/parsec/setup_parsec.py --workload dedup --input simsmall --force-build
+```
+
+Prepare `raytrace` and `vips` after rebuilding `gem5-prebuilt`:
+
+```bash
+py benchmarks/parsec/setup_parsec.py --workload raytrace,vips --input simsmall --force-build --keep-going
 ```
 
 ## Verify Prepared Artifacts
@@ -135,6 +137,8 @@ Other examples:
 ```bash
 MSYS_NO_PATHCONV=1 bash benchmarks/parsec/run-gem5.sh canneal simsmall
 MSYS_NO_PATHCONV=1 bash benchmarks/parsec/run-gem5.sh swaptions simsmall
+MSYS_NO_PATHCONV=1 bash benchmarks/parsec/run-gem5.sh raytrace simsmall
+MSYS_NO_PATHCONV=1 bash benchmarks/parsec/run-gem5.sh vips simsmall
 ```
 
 This writes gem5 output to:
@@ -162,15 +166,12 @@ python scripts/summarize_stats.py m5out/parsec/blackscholes/simsmall/LRU/delta
 ```
 
 It is normal to see gem5/PARSEC SE-mode warnings such as ignored `mprotect` or
-`rseq` syscalls and:
-
-```text
-Can't open /dev/mem: No such file or directory
-```
-
-That message comes from PARSEC hook support running without a full Linux guest.
-The important success signal is:
+`rseq` syscalls. The important success signal is:
 
 ```text
 Exiting @ tick ... because exiting with last active thread context
 ```
+
+If a workload prints `Can't open /dev/mem: No such file or directory`, it was
+likely built with PARSEC's hook config instead of `gcc-pthreads`. Rebuild it
+with `--force-build`.

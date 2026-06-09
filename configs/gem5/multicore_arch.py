@@ -226,6 +226,14 @@ PARSEC_WORKLOADS = {
         "simlarge": "kosarak_990k.dat 790",
       },
     },
+    "raytrace": {
+      "run_exec": "bin/rtview",
+      "inputs": {
+        "simsmall": "happy_buddha.obj -automove -nthreads ${NTHREADS} -frames 3 -res 480 270",
+        "simmedium": "happy_buddha.obj -automove -nthreads ${NTHREADS} -frames 3 -res 960 540",
+        "simlarge": "happy_buddha.obj -automove -nthreads ${NTHREADS} -frames 3 -res 1920 1080",
+      },
+    },
     "streamcluster": {
       "run_exec": "bin/streamcluster",
       "needs_input_dir": False,
@@ -242,6 +250,15 @@ PARSEC_WORKLOADS = {
         "simsmall": "-ns 16 -sm 10000 -nt ${NTHREADS}",
         "simmedium": "-ns 32 -sm 20000 -nt ${NTHREADS}",
         "simlarge": "-ns 64 -sm 40000 -nt ${NTHREADS}",
+      },
+    },
+    "vips": {
+      "run_exec": "bin/vips",
+      "env": {"IM_CONCURRENCY": "${NTHREADS}"},
+      "inputs": {
+        "simsmall": "im_benchmark pomegranate_1600x1200.v output.v",
+        "simmedium": "im_benchmark vulture_2336x2336.v output.v",
+        "simlarge": "im_benchmark bigben_2662x5500.v output.v",
       },
     },
     "x264": {
@@ -284,13 +301,6 @@ def parsec_command():
       "Prepare it first with benchmarks/parsec/setup_parsec.py.".format(binary)
     )
 
-  runtime_lib = "/workspace/benchmarks/parsec/lib/libhooks.so.0"
-  if not os.path.exists(runtime_lib):
-    raise SystemExit(
-      "PARSEC runtime library not found: {}\n"
-      "Run benchmarks/parsec/setup_parsec.py to copy libhooks into the workspace.".format(runtime_lib)
-    )
-
   cwd = f"/workspace/benchmarks/parsec/inputs/{input_name}/{workload_name}"
   if workload.get("needs_input_dir", True) and not os.path.isdir(cwd):
     raise SystemExit(
@@ -301,7 +311,10 @@ def parsec_command():
     cwd = "/tmp"
 
   command_args = shlex.split(expand_parsec_value(run_args))
-  env = ["LD_LIBRARY_PATH=/workspace/benchmarks/parsec/lib"]
+  env = []
+  runtime_lib_dir = "/workspace/benchmarks/parsec/lib"
+  if os.path.isdir(runtime_lib_dir):
+    env.append(f"LD_LIBRARY_PATH={runtime_lib_dir}")
   for key, value in workload.get("env", {}).items():
     env.append(f"{key}={expand_parsec_value(value)}")
 

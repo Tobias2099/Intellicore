@@ -26,7 +26,7 @@ benchmarks/parsec/
 
 ## Current Status
 
-Prepared successfully with `simsmall` inputs:
+PARSEC SE-mode workloads tracked by IntelliCore:
 
 ```text
 blackscholes
@@ -37,25 +37,21 @@ facesim
 ferret
 fluidanimate
 freqmine
+raytrace
 streamcluster
 swaptions
+vips
 x264
 ```
 
-Deferred for now:
+If your local `gem5-prebuilt` image was built before the PARSEC dependency
+updates, `raytrace` and `vips` may fail to prepare until the image is rebuilt.
+The Dockerfiles include their needed packages, but rebuilding `gem5-prebuilt`
+can take a long time because gem5 may be recompiled.
 
-```text
-raytrace
-vips
-```
-
-`raytrace` and `vips` need extra OS packages in the gem5 Docker image. The
-Dockerfiles include those packages now, but building them requires rebuilding
-`gem5-prebuilt`, which can take a long time because gem5 may be recompiled.
-
-The prepared workloads above are wired into `configs/gem5/multicore_arch.py`
-for SE-mode gem5 execution with `simsmall`, `simmedium`, and `simlarge`
-argument sets. Prepare the matching input size before running it.
+The workloads above are wired into `configs/gem5/multicore_arch.py` for SE-mode
+gem5 execution with `simsmall`, `simmedium`, and `simlarge` argument sets.
+Prepare the matching input size before running it.
 
 ## Setup
 
@@ -80,9 +76,16 @@ py benchmarks/parsec/setup_parsec.py --workload all --input all --keep-going
 py benchmarks/parsec/setup_parsec.py --workload dedup --input simsmall --force-build
 ```
 
+After rebuilding `gem5-prebuilt`, prepare the dependency-heavy workloads with:
+
+```bash
+py benchmarks/parsec/setup_parsec.py --workload raytrace,vips --input simsmall --force-build --keep-going
+```
+
 The script creates or reuses the `parsec-source` Docker volume, clones PARSEC
-there, downloads the simulator input archive from the mirror, builds workloads,
-extracts inputs, and copies prepared artifacts into:
+there, downloads the simulator input archive from the mirror, builds workloads
+with PARSEC's `gcc-pthreads` config, extracts inputs, and copies prepared
+artifacts into:
 
 ```text
 benchmarks/parsec/bin/
@@ -108,6 +111,8 @@ Substitute another prepared workload, for example:
 ```bash
 MSYS_NO_PATHCONV=1 bash benchmarks/parsec/run-gem5.sh canneal simsmall
 MSYS_NO_PATHCONV=1 bash benchmarks/parsec/run-gem5.sh swaptions simsmall
+MSYS_NO_PATHCONV=1 bash benchmarks/parsec/run-gem5.sh raytrace simsmall
+MSYS_NO_PATHCONV=1 bash benchmarks/parsec/run-gem5.sh vips simsmall
 ```
 
 The run writes gem5 output under:
@@ -123,18 +128,16 @@ py scripts/summarize_stats.py m5out/parsec/blackscholes/simsmall/LRU/delta
 ```
 
 Normal gem5/PARSEC SE-mode output may include warnings such as ignored
-`mprotect`/`rseq` syscalls and:
-
-```text
-Can't open /dev/mem: No such file or directory
-```
-
-Those messages are expected in syscall-emulation mode. A run is considered
-successful when gem5 exits with a message like:
+`mprotect`/`rseq` syscalls. A run is considered successful when gem5 exits
+with a message like:
 
 ```text
 Exiting @ tick ... because exiting with last active thread context
 ```
+
+If a workload prints `Can't open /dev/mem: No such file or directory`, it was
+likely built with PARSEC's hook config instead of `gcc-pthreads`. Rebuild it
+with `benchmarks/parsec/setup_parsec.py --workload <name> --force-build`.
 
 ## Full-System Path
 

@@ -147,11 +147,29 @@ workloads:
         args: ["--quiet", "--qp", "20", "--partitions", "b8x8,i4x4", "--ref", "5", "--direct", "auto", "--b-pyramid", "--weightb", "--mixed-refs", "--no-fast-pskip", "--me", "umh", "--subme", "7", "--analyse", "b8x8,i4x4", "--threads", "{threads}", "-o", "eledream.264", "eledream_640x360_128.y4m"]
 
   raytrace:
-    status: deferred
+    status: supported-se
     category: rendering
-    reason: requires gem5 Docker image rebuild with Mesa/X11 development packages
+    run_exec: bin/rtview
+    binary: /workspace/benchmarks/parsec/bin/raytrace
+    inputs:
+      simsmall:
+        args: ["happy_buddha.obj", "-automove", "-nthreads", "{threads}", "-frames", "3", "-res", "480", "270"]
+      simmedium:
+        args: ["happy_buddha.obj", "-automove", "-nthreads", "{threads}", "-frames", "3", "-res", "960", "540"]
+      simlarge:
+        args: ["happy_buddha.obj", "-automove", "-nthreads", "{threads}", "-frames", "3", "-res", "1920", "1080"]
 
   vips:
-    status: deferred
+    status: supported-se
     category: image-processing
-    reason: requires gem5 Docker image rebuild with gettext support
+    run_exec: bin/vips
+    binary: /workspace/benchmarks/parsec/bin/vips
+    env:
+      IM_CONCURRENCY: "{threads}"
+    inputs:
+      simsmall:
+        args: ["im_benchmark", "pomegranate_1600x1200.v", "output.v"]
+      simmedium:
+        args: ["im_benchmark", "vulture_2336x2336.v", "output.v"]
+      simlarge:
+        args: ["im_benchmark", "bigben_2662x5500.v", "output.v"]

@@ -15,6 +15,10 @@ benchmarks:
     suite: PARSEC
     category: data-parallel
     enabled_by_default: false
+  - id: parsec-bodytrack
+    suite: PARSEC
+    category: computer-vision
+    enabled_by_default: false
   - id: parsec-canneal
     suite: PARSEC
     category: memory-intensive
@@ -23,9 +27,25 @@ benchmarks:
     suite: PARSEC
     category: pipeline
     enabled_by_default: false
+  - id: parsec-facesim
+    suite: PARSEC
+    category: simulation
+    enabled_by_default: false
+  - id: parsec-ferret
+    suite: PARSEC
+    category: content-similarity
+    enabled_by_default: false
   - id: parsec-fluidanimate
     suite: PARSEC
     category: spatial-simulation
+    enabled_by_default: false
+  - id: parsec-freqmine
+    suite: PARSEC
+    category: data-mining
+    enabled_by_default: false
+  - id: parsec-raytrace
+    suite: PARSEC
+    category: rendering
     enabled_by_default: false
   - id: parsec-streamcluster
     suite: PARSEC
@@ -34,4 +54,12 @@ benchmarks:
   - id: parsec-swaptions
     suite: PARSEC
     category: monte-carlo
+    enabled_by_default: false
+  - id: parsec-vips
+    suite: PARSEC
+    category: image-processing
+    enabled_by_default: false
+  - id: parsec-x264
+    suite: PARSEC
+    category: media-encoding
     enabled_by_default: false

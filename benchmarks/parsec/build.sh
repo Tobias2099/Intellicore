@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
 workload="${1:-blackscholes}"
-build_config="${PARSEC_BUILD_CONFIG:-gcc-hooks}"
+build_config="${PARSEC_BUILD_CONFIG:-gcc-pthreads}"
 
 export MAKEINFO="${MAKEINFO:-true}"
 
@@ -38,7 +38,16 @@ if [ -n "$run_exec" ]; then
   binary_name="$(basename "$run_exec")"
 fi
 
-candidate="$(find "$PARSEC_ROOT/pkgs" -path "*/inst/*/bin/$binary_name" -type f | head -n 1 || true)"
+candidate=""
+if [ -n "$package_root" ]; then
+  preferred_candidate="$(find "$package_root/inst" -path "*/amd64-linux.$build_config/bin/$binary_name" -type f 2>/dev/null | head -n 1 || true)"
+  if [ -n "$preferred_candidate" ]; then
+    candidate="$preferred_candidate"
+  fi
+fi
+if [ -z "$candidate" ]; then
+  candidate="$(find "$PARSEC_ROOT/pkgs" -path "*/inst/*/bin/$binary_name" -type f | head -n 1 || true)"
+fi
 if [ -z "$candidate" ]; then
   candidate="$(find "$PARSEC_ROOT/pkgs" -path "*/inst/*/$binary_name" -type f | head -n 1 || true)"
 fi
