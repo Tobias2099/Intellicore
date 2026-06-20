@@ -105,7 +105,7 @@ def docker_run(*args: str) -> None:
 
 
 def docker_bash(script: str) -> None:
-    docker_run("gem5-prebuilt", "bash", "-lc", script)
+    docker_run("gem5-shell", "bash", "-lc", script)
 
 
 def ensure_docker() -> None:
@@ -195,7 +195,7 @@ def build_workload(workload: WorkloadSpec, force_build: bool) -> None:
     docker_run(
         "-e",
         "PARSEC_ROOT=/parsec-source",
-        "gem5-prebuilt",
+        "gem5-shell",
         "bash",
         "/workspace/benchmarks/parsec/build.sh",
         workload.name,

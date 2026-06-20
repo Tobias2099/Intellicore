@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import m5
 from m5.objects import *
@@ -28,7 +29,8 @@ system.mem_ctrl.dram = DDR3_1600_8x8()
 system.mem_ctrl.dram.range = system.mem_ranges[0]
 system.mem_ctrl.port = system.membus.mem_side_ports
 
-gem5_root = os.environ.get("GEM5_ROOT", "/opt/gem5")
+repo_root = Path(__file__).resolve().parents[2]
+gem5_root = os.environ.get("GEM5_ROOT", str(repo_root / "gem5"))
 
 binary = os.path.join(gem5_root, "tests/test-progs/hello/bin/x86/linux/hello")
 

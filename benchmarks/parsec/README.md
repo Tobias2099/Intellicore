@@ -49,9 +49,9 @@ raytrace
 vips
 ```
 
-`raytrace` and `vips` need extra OS packages in the gem5 Docker image. The
-Dockerfiles include those packages now, but building them requires rebuilding
-`gem5-prebuilt`, which can take a long time because gem5 may be recompiled.
+`raytrace` and `vips` need extra OS packages in the development image. The
+Dockerfile includes the core gem5 build packages; add any missing PARSEC
+packages to `infra/docker/dev.Dockerfile` and rebuild `dev` before retrying.
 
 The prepared workloads above are wired into `configs/gem5/multicore_arch.py`
 for SE-mode gem5 execution with `simsmall`, `simmedium`, and `simlarge`
