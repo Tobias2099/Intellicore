@@ -14,7 +14,7 @@ parser.add_argument("--mode", choices=["sequential", "stride", "random", "hotcol
           default="sequential", help="Memory access pattern")
 parser.add_argument("--prefetch", choices=["none", "stride", "tagged", "delta"],
           default="delta", help="Prefetcher: none, stride, tagged, delta")
-parser.add_argument("--threads", type=int, default=4,
+parser.add_argument("--threads", type=int, default=1,
           help="Worker threads spawned by the memory_patterns process")
 parser.add_argument("--benchmark", choices=["synthetic", "parsec"], default="synthetic",
           help="Benchmark family to run")

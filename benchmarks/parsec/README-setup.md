@@ -75,9 +75,9 @@ raytrace
 vips
 ```
 
-`raytrace` and `vips` need extra OS packages in the gem5 Docker image. The
-Dockerfiles include those packages now, but preparing those workloads requires
-rebuilding `gem5-prebuilt`, which may take a long time.
+`raytrace` and `vips` need extra OS packages in the development image. Add any
+missing packages to `infra/docker/dev.Dockerfile`, rebuild `dev`, and retry the
+setup helper.
 
 ## Useful Setup Variants
 

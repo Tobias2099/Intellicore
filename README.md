@@ -13,6 +13,7 @@ IntelliCore is a research monorepo for a MARL-driven cache coordination system. 
 |-- configs/
 |   |-- agents/
 |   `-- gem5/
+|-- gem5/                 # Git submodule: upstream gem5 source
 |-- docs/
 |   `-- architecture/
 |-- infra/
@@ -49,6 +50,7 @@ IntelliCore is a research monorepo for a MARL-driven cache coordination system. 
 | `configs/`                                        | Versioned configuration files used by services, simulation runs, and agents.                                                           |
 | `configs/agents/`                                 | MARL agent and baseline policy presets, including reward weights and inference limits.                                                 |
 | `configs/gem5/`                                   | Baseline simulator configurations for ISA, core count, memory, cache hierarchy, and deterministic telemetry settings.                  |
+| `gem5/`                                           | Git submodule for the pinned upstream gem5 source used by Docker and local simulation workflows.                                      |
 | `docs/`                                           | Project documentation that is not tied to one package.                                                                                 |
 | `docs/architecture/`                              | Architecture notes, data-flow diagrams, Docker usage, and requirement-to-module mapping.                                               |
 | `infra/`                                          | Infrastructure needed to run or support the project locally and in containers.                                                         |
@@ -177,8 +179,8 @@ The active Alembic schema creates:
 ### Services
 
 - `dev`: Long-running development container with Python 3.11, CPU PyTorch, C++ build tools, and gem5 dependencies.
-- `gem5-shell`: Interactive shell using the dev image, with gem5 source/build volumes mounted under `/opt/gem5`.
-- `gem5-prebuilt`: Interactive shell using a custom image with gem5 cloned and built under `/opt/gem5`.
+- `gem5-shell`: Interactive shell using the dev image and the `gem5/` submodule at `/workspace/gem5`.
+- `gem5-init`: One-shot helper that builds `build/X86/gem5.opt` from the `gem5/` submodule into the Docker `gem5-build` volume.
 - `supabase-check`: One-shot database schema check container that verifies the Supabase telemetry database schema through `DATABASE_URL`.
 - `supabase-auto-migrate`: One-shot workflow that upgrades to head, detects SQLAlchemy model changes, generates a migration if needed, applies it, and runs checks.
 - `supabase-migrate`: One-shot migration container that runs `alembic upgrade head`, then runs schema and ORM checks.
@@ -189,6 +191,7 @@ The active Alembic schema creates:
 
 ```bash
 # Build the Python/PyTorch/C++/gem5 development image
+git submodule update --init --recursive gem5
 docker compose --profile dev build dev
 
 # Run the full Docker toolchain smoke test
@@ -214,15 +217,11 @@ docker compose --profile tools run --rm supabase-migrate
 docker compose --profile tools run --rm supabase-orm-check
 
 # Open an interactive gem5-oriented shell
+docker compose --profile gem5 run --rm gem5-init
 docker compose --profile gem5 run --rm gem5-shell
 
-# Build and run an image that already contains a compiled gem5 checkout
-docker compose --profile gem5 build gem5-prebuilt
-docker compose --profile gem5 run --rm gem5-prebuilt
-
-# If the gem5 build fails at the final link step (often due to RAM pressure),
-# try lowering compile parallelism and re-running with plain logs:
-# docker compose --profile gem5 build --progress=plain --build-arg GEM5_BUILD_JOBS=1 gem5-prebuilt
+# If the gem5 build fails at the final link step, lower GEM5_BUILD_JOBS in
+# docker-compose.yml and rerun gem5-init.
 
 # Stop and remove containers
 docker compose down
@@ -257,84 +256,53 @@ On Windows, Docker Desktop is the usual way to provide the Docker engine, but th
 
 ## gem5 Workflow
 
-By default, use the prebuilt gem5 image. It clones gem5 and builds `build/X86/gem5.opt` during the Docker image build. After a successful build, Docker automatically stores the image locally as `intellicore/gem5:local`; no manual `docker save` step is required unless you want to export the image to a tar file for backup or sharing.
+gem5 source lives in the top-level `gem5/` submodule. The Docker image only provides the Linux build tools; it no longer clones or vendors a separate gem5 checkout.
 
-Build the image:
+Initialize the submodule and build gem5 from it:
 
 ```bash
-docker compose --profile gem5 build gem5-prebuilt
+git submodule update --init --recursive gem5
+docker compose --profile dev build dev
+docker compose --profile gem5 run --rm gem5-init
 ```
 
-The first build can take a long time because it compiles gem5. A successful build ends with output similar to:
+The first `gem5-init` run can take a while because it compiles gem5. The build output is stored in Docker's `gem5-build` volume mounted at:
 
 ```text
-intellicore/gem5:local  Built
+/workspace/gem5/build/X86/gem5.opt
 ```
 
-Check that the image exists locally:
+Open an interactive shell with the submodule mounted at `$GEM5_ROOT`:
 
 ```bash
-docker image ls intellicore/gem5:local
+docker compose --profile gem5 run --rm gem5-shell
 ```
 
-If the image is present, Docker prints a row for `intellicore/gem5` with the `local` tag. If only the table header appears, the image is not available locally and the build did not finish successfully or was removed.
-
-Run the built image:
+Inside the container, test that gem5 is present and runnable:
 
 ```bash
-docker compose --profile gem5 run --rm gem5-prebuilt
+$GEM5_ROOT/build/$GEM5_ISA/$GEM5_BUILD_VARIANT --help
+ls -lh $GEM5_ROOT/build/$GEM5_ISA/$GEM5_BUILD_VARIANT
 ```
 
-Run IntelliCore's baseline architecture config using the gem5 binary inside the container (writes outputs under `m5out/intellicore-arch` on the host):
+Run IntelliCore's baseline architecture config using the submodule build (writes outputs under `m5out/intellicore-arch` on the host):
 
 ```bash
-docker compose --profile gem5 run --rm gem5-prebuilt bash -lc \
-  'cd "$GEM5_ROOT" && build/X86/gem5.opt --outdir=/workspace/m5out/intellicore-arch /workspace/configs/gem5/architecture.py'
+docker compose --profile gem5 run --rm gem5-shell bash -lc \
+  'cd "$GEM5_ROOT" && build/${GEM5_ISA:-X86}/${GEM5_BUILD_VARIANT:-gem5.opt} --outdir=/workspace/m5out/intellicore-arch /workspace/configs/gem5/architecture.py'
 ```
 
-Once the shell prompt changes to something like `root@...:/workspace#`, you are inside the container. Test that gem5 is present and runnable:
+To update gem5, update the submodule and commit the new parent-repo pointer:
 
 ```bash
-$GEM5_ROOT/build/X86/gem5.opt --help
-ls -lh $GEM5_ROOT/build/X86/gem5.opt
+cd gem5
+git fetch --tags
+git checkout <tag-or-commit>
+cd ..
+git add gem5
 ```
 
-Leave the container with:
-
-```bash
-exit
-```
-
-If you want to bypass Compose and run the saved image directly:
-
-```bash
-docker run --rm -it \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  -e GEM5_ROOT=/opt/gem5 \
-  -e PYTHONPATH=/workspace/services/control-plane/src:/workspace/services/training/src \
-  intellicore/gem5:local bash
-```
-
-To export the built image to a portable file:
-
-```bash
-docker save -o intellicore-gem5-local.tar intellicore/gem5:local
-```
-
-Load that file on another machine with:
-
-```bash
-docker load -i intellicore-gem5-local.tar
-```
-
-The default build pins gem5 to `v25.1.0.0` so the image is reproducible. To intentionally update gem5, change the `GEM5_REF` build arg to another gem5 release tag. You can also pass a branch such as `stable` when you explicitly want a moving upstream target:
-
-```bash
-docker compose --profile gem5 build --build-arg GEM5_REF=stable gem5-prebuilt
-```
-
-The prebuilt image defaults to `build/X86/gem5.opt`. Override `GEM5_ISA`, `GEM5_BUILD_VARIANT`, or `GEM5_BUILD_JOBS` to build another target or tune compile parallelism.
+Editing files under `configs/gem5/`, `benchmarks/`, or `sim/` does not require rebuilding gem5. Rerun `gem5-init` only when the gem5 submodule source changes, the selected ISA or binary variant changes, or the `gem5-build` volume/build output is missing.
 
 ### Multicore LRU Config
 
@@ -349,19 +317,19 @@ The config runs the synthetic C++ benchmark at `benchmarks/src/memory_patterns.c
 
 The benchmark accumulates each loaded value into `sum` and prints the result. The value of `sum` is not the performance metric; it prevents the compiler from optimizing away the memory reads.
 
-The benchmark accepts an optional second argument for the number of array elements. For gem5 runs, keep this much smaller than native runs because every simulated core launches its own process. The multicore config uses `1048576` elements by default, which is about 4 MiB of integer array data per process before random-mode index storage.
+The benchmark accepts an optional second argument for the number of array elements and an optional third argument for worker threads. For gem5 smoke runs, the multicore config defaults to one worker thread because pthread-heavy syscall-emulation runs can fail before the simulation data is useful. It uses `1048576` elements by default, which is about 4 MiB of integer array data before random-mode index storage.
 
-Compile the benchmark inside the gem5 Docker container so gem5 receives a Linux executable:
+Compile the benchmark inside the gem5 shell so gem5 receives a Linux executable:
 
 ```bash
-docker compose --profile gem5 run --rm gem5-prebuilt \
+docker compose --profile gem5 run --rm gem5-shell \
   bash -lc 'mkdir -p /workspace/benchmarks/bin && g++ -O2 -std=c++17 -static /workspace/benchmarks/src/memory_patterns.cpp -o /workspace/benchmarks/bin/memory_patterns'
 ```
 
 Windows Git Bash or VS Code Bash variant:
 
 ```bash
-MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-prebuilt \
+MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-shell \
   bash -lc 'mkdir -p /workspace/benchmarks/bin && g++ -O2 -std=c++17 -static /workspace/benchmarks/src/memory_patterns.cpp -o /workspace/benchmarks/bin/memory_patterns'
 ```
 
@@ -383,14 +351,14 @@ process.cmd = [binary, selected_mode, benchmark_size]
 Change `selected_mode` to `modes[1]` for `stride`, `modes[2]` for `random`, or `modes[3]` for `hotcold`. With the current multicore config, every CPU runs the same benchmark mode.
 
 
-Run it with the prebuilt gem5 image, selecting eviction policy and access pattern.
+Run it with the submodule gem5 build, selecting eviction policy and access pattern.
 
 Example (LRU policy, stride pattern, delta prefetcher) — this writes outputs to `/workspace/m5out/LRU/stride` on the host:
 
 ```bash
-docker compose --profile gem5 run --rm -e POLICY=LRU -e MODE=stride -e PREFETCH=delta gem5-prebuilt \
+docker compose --profile gem5 run --rm -e POLICY=LRU -e MODE=stride -e PREFETCH=delta gem5-shell \
   bash -lc 'cd "$GEM5_ROOT" && \
-    build/X86/gem5.opt --outdir=/workspace/m5out/$POLICY/$MODE \
+    build/${GEM5_ISA:-X86}/${GEM5_BUILD_VARIANT:-gem5.opt} --outdir=/workspace/m5out/$POLICY/$MODE \
     /workspace/configs/gem5/multicore_LRU.py --repl $POLICY --mode $MODE --prefetch $PREFETCH'
 ```
 
@@ -398,42 +366,42 @@ Template (substitute values; default prefetcher is `delta` — choose `none`, `s
 
 ```bash
 docker compose --profile gem5 run --rm -e POLICY=<LRU|LFU|MRU> -e MODE=<sequential|stride|random|hotcold> -e PREFETCH=<none|stride|tagged|delta> \
-  gem5-prebuilt bash -lc 'cd "$GEM5_ROOT" && \
-    build/X86/gem5.opt --outdir=/workspace/m5out/$POLICY/$MODE \
+  gem5-shell bash -lc 'cd "$GEM5_ROOT" && \
+    build/${GEM5_ISA:-X86}/${GEM5_BUILD_VARIANT:-gem5.opt} --outdir=/workspace/m5out/$POLICY/$MODE \
     /workspace/configs/gem5/multicore_LRU.py --repl $POLICY --mode $MODE --prefetch $PREFETCH'
 ```
 
 Windows Git Bash or VS Code Bash variant (MSYS path conversion disabled):
 
 ```bash
-MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm -e POLICY=LRU -e MODE=stride gem5-prebuilt \
+MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm -e POLICY=LRU -e MODE=stride gem5-shell \
   bash -lc 'cd "$GEM5_ROOT" && \
-    build/X86/gem5.opt --outdir=/workspace/m5out/$POLICY/$MODE \
+    build/${GEM5_ISA:-X86}/${GEM5_BUILD_VARIANT:-gem5.opt} --outdir=/workspace/m5out/$POLICY/$MODE \
     /workspace/configs/gem5/multicore_LRU.py --repl $POLICY --mode $MODE'
 ```
 
-Editing files under `configs/gem5/` does not require rebuilding the Docker image because the repository is mounted into the container at `/workspace`.
+Editing files under `configs/gem5/` does not require rebuilding gem5 because the repository is mounted into the container at `/workspace`.
 
 gem5 writes simulation output under the directory passed to `--outdir`. The example above writes `m5out/sequential/stats.txt` on the host. If `--outdir` is omitted, gem5 uses the default `m5out/stats.txt`, which is fine for a smoke test but will be overwritten by the next run.
 
 Use separate output folders when comparing modes:
 
 ```bash
-docker compose --profile gem5 run --rm gem5-prebuilt \
-  bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/stride /workspace/configs/gem5/multicore_LRU.py'
+docker compose --profile gem5 run --rm gem5-shell \
+  bash -lc '$GEM5_ROOT/build/${GEM5_ISA:-X86}/${GEM5_BUILD_VARIANT:-gem5.opt} --outdir=/workspace/m5out/stride /workspace/configs/gem5/multicore_LRU.py'
 
-docker compose --profile gem5 run --rm gem5-prebuilt \
-  bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/random /workspace/configs/gem5/multicore_LRU.py'
+docker compose --profile gem5 run --rm gem5-shell \
+  bash -lc '$GEM5_ROOT/build/${GEM5_ISA:-X86}/${GEM5_BUILD_VARIANT:-gem5.opt} --outdir=/workspace/m5out/random /workspace/configs/gem5/multicore_LRU.py'
 ```
 
 Windows Git Bash or VS Code Bash variants:
 
 ```bash
-MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-prebuilt \
-  bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/stride /workspace/configs/gem5/multicore_LRU.py'
+MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-shell \
+  bash -lc '$GEM5_ROOT/build/${GEM5_ISA:-X86}/${GEM5_BUILD_VARIANT:-gem5.opt} --outdir=/workspace/m5out/stride /workspace/configs/gem5/multicore_LRU.py'
 
-MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-prebuilt \
-  bash -lc '$GEM5_ROOT/build/X86/gem5.opt --outdir=/workspace/m5out/random /workspace/configs/gem5/multicore_LRU.py'
+MSYS_NO_PATHCONV=1 docker compose --profile gem5 run --rm gem5-shell \
+  bash -lc '$GEM5_ROOT/build/${GEM5_ISA:-X86}/${GEM5_BUILD_VARIANT:-gem5.opt} --outdir=/workspace/m5out/random /workspace/configs/gem5/multicore_LRU.py'
 ```
 
 The benchmark's own `cout` output appears in the gem5 run log. Cache and timing counters appear in `stats.txt`.
@@ -466,10 +434,10 @@ benchmarks/parsec/inputs/simsmall/blackscholes/in_4K.txt
 
 If you have a PARSEC source tree available, place it at
 `benchmarks/parsec/source/` or set `PARSEC_ROOT`, then build inside the gem5
-container:
+shell:
 
 ```bash
-docker compose --profile gem5 run --rm gem5-prebuilt \
+docker compose --profile gem5 run --rm gem5-shell \
   bash /workspace/benchmarks/parsec/build.sh blackscholes
 ```
 
@@ -499,16 +467,14 @@ grep -i "miss" m5out/random/stats.txt
 grep -i "miss" m5out/hotcold/stats.txt
 ```
 
-### Backup Manual gem5 Build
-
-Use this fallback only if you are working in the lighter `dev` container and want to clone/build gem5 manually instead of using `gem5-prebuilt`.
+### Manual gem5 Build
 
 ```bash
+git submodule update --init --recursive gem5
 docker compose --profile dev up -d dev
 docker compose exec dev bash
-git clone https://gem5.googlesource.com/public/gem5 "$GEM5_ROOT"
 cd "$GEM5_ROOT"
-scons build/X86/gem5.opt -j"$(nproc)"
+scons "build/${GEM5_ISA:-X86}/${GEM5_BUILD_VARIANT:-gem5.opt}" -j"$(nproc)"
 ```
 
 ## Local Python Commands
