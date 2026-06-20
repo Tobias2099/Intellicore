@@ -13,5 +13,6 @@ build
 Build
 build-*
 gem5
+m5out
 artifacts
 vcpkg_installed

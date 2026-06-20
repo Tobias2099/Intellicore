@@ -10,7 +10,6 @@ ENV GEM5_ROOT=/workspace/gem5
 ENV GEM5_ISA=X86
 ENV GEM5_BUILD_VARIANT=gem5.opt
 ENV PYTHONPATH=/workspace/services/control-plane/src:/workspace/services/training/src
-ENV PATH=/workspace/gem5/build/X86:${PATH}
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

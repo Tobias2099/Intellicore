@@ -57,32 +57,37 @@ services:
       PYTHONPATH: /workspace/services/control-plane/src:/workspace/services/training/src
     profiles:
       - gem5
-    command: >-
-      bash -lc 'set -euo pipefail;
-      if [ ! -d "$${GEM5_ROOT}/src/python/m5" ]; then
-        echo "gem5 submodule source not found under $${GEM5_ROOT}." >&2;
-        echo "Initialize it first on the host:" >&2;
-        echo "  git submodule update --init --recursive gem5" >&2;
-        exit 2;
-      fi;
-      if grep -Ilr "$$(printf "\r")" "$${GEM5_ROOT}/build_tools" "$${GEM5_ROOT}/site_scons" "$${GEM5_ROOT}/SConstruct" 2>/dev/null | head -n 1 | grep -q .; then
-        echo "gem5 source has CRLF line endings. Re-check out the submodule with LF endings:" >&2;
-        echo "  git -C gem5 config core.autocrlf false" >&2;
-        echo "  git -C gem5 reset --hard" >&2;
-        exit 2;
-      fi;
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        if [ ! -d "$${GEM5_ROOT}/src/python/m5" ]; then
+          echo "gem5 submodule source not found under $${GEM5_ROOT}." >&2;
+          echo "Initialize it first on the host:" >&2;
+          echo "  git submodule update --init --recursive gem5" >&2;
+          exit 2;
+        fi
+        crlf_file="$$(grep -Ilr $$'\r' "$${GEM5_ROOT}/build_tools" "$${GEM5_ROOT}/site_scons" "$${GEM5_ROOT}/SConstruct" 2>/dev/null | sed -n '1p' || true)"
+        if [ -n "$${crlf_file}" ]; then
+          echo "gem5 source has CRLF line endings. Re-check out the submodule with LF endings:" >&2;
+          echo "  first CRLF file: $${crlf_file}" >&2;
+          echo "  git -C gem5 config core.autocrlf false" >&2;
+          echo "  git -C gem5 reset --hard" >&2;
+          exit 2;
+        fi
 
-      if [ -f "$${GEM5_ROOT}/requirements.txt" ]; then
-        echo "[gem5-init] Installing gem5 python requirements...";
-        python -m pip install --no-cache-dir -r "$${GEM5_ROOT}/requirements.txt";
-      fi;
+        if [ -f "$${GEM5_ROOT}/requirements.txt" ]; then
+          echo "[gem5-init] Installing gem5 python requirements...";
+          python -m pip install --no-cache-dir -r "$${GEM5_ROOT}/requirements.txt";
+        fi
 
-      echo "[gem5-init] Building gem5 (build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT}) from the submodule...";
-      cd "$${GEM5_ROOT}";
-      echo "[gem5-init] Running: scons $${GEM5_SCONS_FLAGS:-} build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT} -j$${GEM5_BUILD_JOBS}";
-      scons $${GEM5_SCONS_FLAGS:-} "build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT}" -j"$${GEM5_BUILD_JOBS}";
+        echo "[gem5-init] Building gem5 (build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT}) from the submodule...";
+        cd "$${GEM5_ROOT}"
+        echo "[gem5-init] Running: scons $${GEM5_SCONS_FLAGS:-} build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT} -j$${GEM5_BUILD_JOBS}";
+        scons $${GEM5_SCONS_FLAGS:-} "build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT}" -j"$${GEM5_BUILD_JOBS}"
 
-      echo "[gem5-init] Done. Built: $${GEM5_ROOT}/build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT}";'
+        echo "[gem5-init] Done. Built: $${GEM5_ROOT}/build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT}"
 
   gem5-architecture:
     image: intellicore/dev:local
@@ -98,27 +103,30 @@ services:
       PYTHONPATH: /workspace/services/control-plane/src:/workspace/services/training/src
     profiles:
       - gem5
-    command: >-
-      bash -lc 'set -euo pipefail;
-      if [ ! -d "$${GEM5_ROOT}/src/python/m5" ]; then
-        echo "gem5 source not found under $${GEM5_ROOT}." >&2;
-        echo "Initialize the gem5 submodule first:" >&2;
-        echo "  git submodule update --init --recursive gem5" >&2;
-        echo "Then build gem5:" >&2;
-        echo "  docker compose --profile gem5 run --rm gem5-init" >&2;
-        exit 2;
-      fi;
-      if [ ! -d "$${GEM5_ROOT}/build/$${GEM5_ISA}/python" ]; then
-        detected_build="$$(find "$${GEM5_ROOT}/build" -maxdepth 2 -type d -name python -printf "%h\n" 2>/dev/null | head -n1 || true)";
-        if [ -n "$${detected_build}" ]; then
-          export GEM5_ISA="$$(basename "$${detected_build}")";
-        else
-          echo "gem5 python extension not found under $${GEM5_ROOT}/build. Build gem5 first." >&2;
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        if [ ! -d "$${GEM5_ROOT}/src/python/m5" ]; then
+          echo "gem5 source not found under $${GEM5_ROOT}." >&2;
+          echo "Initialize the gem5 submodule first:" >&2;
+          echo "  git submodule update --init --recursive gem5" >&2;
+          echo "Then build gem5:" >&2;
           echo "  docker compose --profile gem5 run --rm gem5-init" >&2;
-          exit 3;
-        fi;
-      fi;
-      "$${GEM5_ROOT}/build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT}" --outdir=/workspace/m5out/intellicore-arch /workspace/configs/gem5/architecture.py;'
+          exit 2;
+        fi
+        if [ ! -d "$${GEM5_ROOT}/build/$${GEM5_ISA}/python" ]; then
+          detected_build="$$(find "$${GEM5_ROOT}/build" -maxdepth 2 -type d -name python -printf "%h\n" 2>/dev/null | head -n1 || true)";
+          if [ -n "$${detected_build}" ]; then
+            export GEM5_ISA="$$(basename "$${detected_build}")";
+          else
+            echo "gem5 python extension not found under $${GEM5_ROOT}/build. Build gem5 first." >&2;
+            echo "  docker compose --profile gem5 run --rm gem5-init" >&2;
+            exit 3;
+          fi;
+        fi
+        "$${GEM5_ROOT}/build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT}" --outdir=/workspace/m5out/intellicore-arch /workspace/configs/gem5/architecture.py
 
   supabase-check:
     image: python:3.11-slim
