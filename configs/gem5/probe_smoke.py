@@ -42,4 +42,4 @@ exit_cause = exit_event.getCause()
 m5.stats.dump()
 print(f"Intellicore probe smoke test completed: {exit_cause}")
 if exit_cause != "simulate() limit reached":
-    exit(1)
+    raise SystemExit(1)

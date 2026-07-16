@@ -23,6 +23,7 @@ IntellicoreProbeSmokeStats(IntellicoreProbeSmoke *parent)
 void
 IntellicoreProbeSmoke::handleRequest(const probing::PacketInfo &pkt_info)
 {
+    (void)pkt_info;
     stats.events++;
 }
 
