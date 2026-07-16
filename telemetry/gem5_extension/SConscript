@@ -1,0 +1,6 @@
+# -*- mode:python -*-
+
+Import('*')
+
+SimObject('IntellicoreProbeSmoke.py', sim_objects=['IntellicoreProbeSmoke'])
+Source('intellicore_probe_smoke.cc')

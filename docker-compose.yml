@@ -84,8 +84,10 @@ services:
 
         echo "[gem5-init] Building gem5 (build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT}) from the submodule...";
         cd "$${GEM5_ROOT}"
-        echo "[gem5-init] Running: scons $${GEM5_SCONS_FLAGS:-} build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT} -j$${GEM5_BUILD_JOBS}";
-        scons $${GEM5_SCONS_FLAGS:-} "build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT}" -j"$${GEM5_BUILD_JOBS}"
+        echo "[gem5-init] Running: scons $${GEM5_SCONS_FLAGS:-} build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT} EXTRAS=/workspace/telemetry/gem5_extension -j$${GEM5_BUILD_JOBS}";
+        scons $${GEM5_SCONS_FLAGS:-} "build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT}" \
+          EXTRAS=/workspace/telemetry/gem5_extension \
+          -j"$${GEM5_BUILD_JOBS}"
 
         echo "[gem5-init] Done. Built: $${GEM5_ROOT}/build/$${GEM5_ISA}/$${GEM5_BUILD_VARIANT}"
 
