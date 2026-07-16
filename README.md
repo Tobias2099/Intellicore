@@ -256,7 +256,30 @@ On Windows, Docker Desktop is the usual way to provide the Docker engine, but th
 
 ## gem5 Workflow
 
-gem5 source lives in the top-level `gem5/` submodule. The Docker image only provides the Linux build tools; it no longer clones or vendors a separate gem5 checkout.
+### Probe smoke test
+
+The minimal probe test attaches IntelliCore's `IntellicoreProbeSmoke` to a
+`CommMonitor`. The probe is compiled from `telemetry/gem5_extension` using
+gem5's out-of-tree `EXTRAS` mechanism; the upstream gem5 source tree remains
+unmodified.
+
+After running `gem5-init`, run the smoke test with the submodule build:
+
+```bash
+docker compose --profile gem5 run --rm gem5-shell bash -lc \
+  'cd "$GEM5_ROOT" && build/${GEM5_ISA:-X86}/${GEM5_BUILD_VARIANT:-gem5.opt} \
+    --outdir=/workspace/m5out/probe-smoke \
+    /workspace/configs/gem5/probe_smoke.py'
+```
+
+The smoke test passes when it prints `Intellicore probe smoke test completed:
+simulate() limit reached` and `m5out/probe-smoke/stats.txt` contains a nonzero
+`system.monitor.intellicore_probe_smoke.events` value. This confirms that
+packet events reached IntelliCore's C++ probe callback.
+
+gem5 source lives in the top-level `gem5/` submodule. The Docker image only
+provides the Linux build tools; it does not clone or vendor a second gem5
+checkout.
 
 Initialize the submodule and build gem5 from it:
 
