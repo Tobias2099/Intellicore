@@ -1,0 +1,146 @@
+@startuml
+title IntelliCore Telemetry - Layer 1 OOP Model
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+hide empty members
+
+package "gem5 integration" #E8F4FD {
+  abstract class BaseMemProbe <<gem5>> {
+    # handleRequest(pktInfo: PacketInfo): void
+  }
+
+  class Gem5TelemetryProbe {
+    - registry: ThreadTelemetryRegistry&
+    + handleRequest(pktInfo: PacketInfo): void
+    + recordEviction(event: EvictionEvent): void
+    + recordMigration(threadId: ThreadId, newCoreId: CoreId): void
+  }
+
+  BaseMemProbe <|-- Gem5TelemetryProbe
+}
+
+package "Layer 1 - Data Extraction" #F3FAF3 {
+  enum RecordKind {
+    MemoryTrace = 0
+    EvictionSnapshot = 1
+  }
+
+  enum MemoryEventKind {
+    Read
+    Write
+    Migration
+  }
+
+  class TelemetryRecord <<value object; fixed-width target: 16 B>> {
+    + metadata: uint8_t
+    + timestamp: uint32_t
+    + encode(): byte[16]
+  }
+
+  note right of TelemetryRecord
+    metadata: uint8_t bit layout
+    [0]    kind: 1 bit
+    [1]    isHit: 1 bit
+    [2]    isEviction: 1 bit
+    [5:3]  evictedWayIndex: 3 bits
+    [7:6]  reserved: 2 bits
+  end note
+
+  struct MemoryTracePayload <<value object>> {
+    + threadId: uint8_t
+    + opType: uint8_t
+    + address: uint64_t
+    + coherenceMap: uint8_t
+  }
+
+  struct EvictionSnapshotPayload <<value object>> {
+    + uint8_t fields[8]
+  }
+
+  note right of EvictionSnapshotPayload
+    each lineData: uint8_t bit layout
+    [1:0]  saturationCounter: 2 bits
+    [4:2]  lruRank: 3 bits
+    [5]    dirtyBit: 1 bit
+    [6]    invalidBit: 1 bit
+    [7]    accessBit: 1 bit
+  end note
+
+  class ThreadBuffer <<SPSC>> {
+    - slots: TelemetryRecord[capacity]
+    - head: atomic<uint32_t> <<consumer-owned>>
+    - tail: atomic<uint32_t> <<producer-owned>>
+    - droppedTraces: atomic<uint64_t>
+    + capacity: uint32_t = 65536
+    + tryPush(record: TelemetryRecord): bool
+    + tryPop(): optional<TelemetryRecord>
+    + size(): uint32_t
+    + freeSlots(): uint32_t
+    + droppedCount(): uint64_t
+  }
+
+  class ThreadTelemetryState {
+    + threadId: ThreadId
+    + currentCoreId: CoreId
+    - buffer: ThreadBuffer
+    + append(record: TelemetryRecord): bool
+    + updateCore(newCoreId: CoreId): void
+  }
+
+  class ThreadTelemetryRegistry {
+    - states: Map<ThreadId, ThreadTelemetryState>
+    + stateFor(threadId: ThreadId): ThreadTelemetryState&
+    + migrate(threadId: ThreadId, newCoreId: CoreId): void
+  }
+
+  class TelemetryRecordFactory {
+    {static} - recordCounter: atomic<uint64_t>
+    + buildTelemetryRecord(pktInfo: PacketInfo, state: ThreadTelemetryState): TelemetryRecord
+    + buildEvictionRecord(event: EvictionEvent, state: ThreadTelemetryState): TelemetryRecord
+    + buildMigrationRecord(state: ThreadTelemetryState, newCoreId: CoreId): TelemetryRecord
+    {static} - allocateRecordId(): uint64_t
+  }
+}
+
+package "Layer 2 boundary" #F4F4F4 {
+  class TokenAwarePoller <<Layer 2>> {
+    + drain(buffer: ThreadBuffer, budget: uint32_t): TraceBatch
+  }
+}
+
+Gem5TelemetryProbe --> ThreadTelemetryRegistry : finds state
+Gem5TelemetryProbe --> TelemetryRecordFactory : constructs record
+TelemetryRecordFactory --> TelemetryRecord
+ThreadTelemetryRegistry "1" *-- "1..* states" ThreadTelemetryState
+ThreadTelemetryState "1 " *-- "1" ThreadBuffer : owns
+ThreadTelemetryState --> TelemetryRecord : appends
+ThreadBuffer "1\n" o-- "0..capacity " TelemetryRecord : stores
+TokenAwarePoller ..> ThreadBuffer : consumer drains
+
+TelemetryRecord --> RecordKind
+TelemetryRecord ..> MemoryTracePayload : payload when kind = 0
+TelemetryRecord ..> EvictionSnapshotPayload : payload when kind = 1
+MemoryTracePayload --> MemoryEventKind
+
+note right of TelemetryRecordFactory
+  recordCounter assigns one global ordering
+  across all telemetry records and all threads.
+  This must be atomic on the hot path.
+end note
+
+note bottom of ThreadBuffer
+  Producer: gem5 cache/probe hook
+  Consumer: Layer 2 poller
+  Full buffer: drop record, increment droppedTraces,
+  and return without blocking.
+end note
+
+note bottom of ThreadTelemetryState
+  Thread migration retains this thread-owned buffer.
+  Existing records remain valid; future records use
+  the updated currentCoreId.
+end note
+@enduml
