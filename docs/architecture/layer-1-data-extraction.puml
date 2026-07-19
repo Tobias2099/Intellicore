@@ -36,7 +36,7 @@ package "Layer 1 - Data Extraction" #F3FAF3 {
 
   class TelemetryRecord <<value object; fixed-width target: 16 B>> {
     + metadata: uint8_t
-    + timestamp: uint32_t
+    + recordCounter: uint32_t
     + encode(): byte[16]
   }
 
@@ -98,7 +98,7 @@ package "Layer 1 - Data Extraction" #F3FAF3 {
 
   class TelemetryRecordFactory {
     {static} - recordCounter: atomic<uint64_t>
-    + buildTelemetryRecord(pktInfo: PacketInfo, state: ThreadTelemetryState): TelemetryRecord
+    + buildTraceRecord(pktInfo: PacketInfo, state: ThreadTelemetryState): TelemetryRecord
     + buildEvictionRecord(event: EvictionEvent, state: ThreadTelemetryState): TelemetryRecord
     + buildMigrationRecord(state: ThreadTelemetryState, newCoreId: CoreId): TelemetryRecord
     {static} - allocateRecordId(): uint64_t
