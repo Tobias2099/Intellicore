@@ -3,4 +3,7 @@
 Import('*')
 
 SimObject('IntellicoreProbeSmoke.py', sim_objects=['IntellicoreProbeSmoke'])
+SimObject('Gem5TelemetryProbe.py', sim_objects=['Gem5TelemetryProbe'])
 Source('intellicore_probe_smoke.cc')
+Source('gem5_telemetry_probe.cc')
+Source('layer1/telemetry_record_factory.cc')
