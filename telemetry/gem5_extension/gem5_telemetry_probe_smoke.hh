@@ -1,8 +1,10 @@
-#ifndef __INTELLICORE_GEM5_EXTENSION_TELEMETRY_PROBE_HH__
-#define __INTELLICORE_GEM5_EXTENSION_TELEMETRY_PROBE_HH__
+#ifndef __INTELLICORE_GEM5_EXTENSION_TELEMETRY_PROBE_SMOKE_HH__
+#define __INTELLICORE_GEM5_EXTENSION_TELEMETRY_PROBE_SMOKE_HH__
 
 #include <cstdint>
+#include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "layer1/telemetry_record_factory.hh"
@@ -14,15 +16,15 @@
 namespace gem5
 {
 
-struct Gem5TelemetryProbeParams;
+struct Gem5TelemetryProbeSmokeParams;
 
 namespace intellicore
 {
 
-class Gem5TelemetryProbe : public BaseMemProbe
+class Gem5TelemetryProbeSmoke : public BaseMemProbe
 {
   public:
-    Gem5TelemetryProbe(const Gem5TelemetryProbeParams &params);
+    Gem5TelemetryProbeSmoke(const Gem5TelemetryProbeSmokeParams &params);
 
     void regProbeListeners() override;
 
@@ -34,13 +36,13 @@ class Gem5TelemetryProbe : public BaseMemProbe
   private:
     struct DataUpdateListener : public ProbeListenerArgBase<CacheDataUpdateProbeArg>
     {
-        DataUpdateListener(Gem5TelemetryProbe &_parent, std::string name)
+        DataUpdateListener(Gem5TelemetryProbeSmoke &_parent, std::string name)
             : ProbeListenerArgBase(std::move(name)), parent(_parent)
         {}
 
         void notify(const CacheDataUpdateProbeArg &arg) override;
 
-        Gem5TelemetryProbe &parent;
+        Gem5TelemetryProbeSmoke &parent;
     };
 
     struct AccessHint
@@ -51,9 +53,9 @@ class Gem5TelemetryProbe : public BaseMemProbe
         uint64_t refs = 0;
     };
 
-    struct Gem5TelemetryProbeStats : public statistics::Group
+    struct Gem5TelemetryProbeSmokeStats : public statistics::Group
     {
-        Gem5TelemetryProbeStats(Gem5TelemetryProbe *parent);
+        Gem5TelemetryProbeSmokeStats(Gem5TelemetryProbeSmoke *parent);
 
         statistics::Scalar traceRecords;
         statistics::Scalar evictionRecords;
@@ -76,4 +78,4 @@ class Gem5TelemetryProbe : public BaseMemProbe
 } // namespace intellicore
 } // namespace gem5
 
-#endif // __INTELLICORE_GEM5_EXTENSION_TELEMETRY_PROBE_HH__
+#endif // __INTELLICORE_GEM5_EXTENSION_TELEMETRY_PROBE_SMOKE_HH__

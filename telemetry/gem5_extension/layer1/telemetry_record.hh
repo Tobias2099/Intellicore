@@ -4,37 +4,12 @@
 #include <array>
 #include <cstdint>
 
+#include "layer1/telemetry_types.hh"
+
 namespace gem5
 {
 namespace intellicore
 {
-
-enum class RecordKind : uint8_t
-{
-    MemoryTrace = 0,
-    EvictionSnapshot = 1
-};
-
-enum class MemoryEventKind : uint8_t
-{
-    Read = 0,
-    Write = 1,
-    Migration = 2,
-    Other = 3,
-};
-
-struct MemoryTracePayload
-{
-    uint8_t threadId = 0;
-    uint8_t opType = 0;
-    uint64_t address = 0;
-    uint8_t coherenceMap = 0;
-};
-
-struct EvictionSnapshotPayload
-{
-    std::array<uint8_t, 8> fields{};
-};
 
 class TelemetryRecord
 {

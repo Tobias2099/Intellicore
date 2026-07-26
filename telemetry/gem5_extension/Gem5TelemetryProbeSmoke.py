@@ -1,11 +1,12 @@
 from m5.objects.BaseMemProbe import BaseMemProbe
 from m5.params import *
+from telemetry_config import DEFAULT_THREAD_BUFFER_CAPACITY
 
 
-class Gem5TelemetryProbe(BaseMemProbe):
-    type = "Gem5TelemetryProbe"
-    cxx_header = "gem5_telemetry_probe.hh"
-    cxx_class = "gem5::intellicore::Gem5TelemetryProbe"
+class Gem5TelemetryProbeSmoke(BaseMemProbe):
+    type = "Gem5TelemetryProbeSmoke"
+    cxx_header = "gem5_telemetry_probe_smoke.hh"
+    cxx_class = "gem5::intellicore::Gem5TelemetryProbeSmoke"
 
     # Typical values are "Hit", "Miss", or "PktRequest".
     probe_name = Param.String("PktRequest", "Primary packet probe name")
@@ -16,5 +17,5 @@ class Gem5TelemetryProbe(BaseMemProbe):
     )
 
     thread_buffer_capacity = Param.Unsigned(
-        65536, "Per-probe ring buffer capacity"
+        DEFAULT_THREAD_BUFFER_CAPACITY, "Per-probe ring buffer capacity"
     )

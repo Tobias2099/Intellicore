@@ -1,14 +1,15 @@
-#include "gem5_telemetry_probe.hh"
+#include "gem5_telemetry_probe_smoke.hh"
 
 #include "params/BaseMemProbe.hh"
-#include "params/Gem5TelemetryProbe.hh"
+#include "params/Gem5TelemetryProbeSmoke.hh"
 
 namespace gem5
 {
 namespace intellicore
 {
 
-Gem5TelemetryProbe::Gem5TelemetryProbe(const Gem5TelemetryProbeParams &p)
+Gem5TelemetryProbeSmoke::Gem5TelemetryProbeSmoke(
+    const Gem5TelemetryProbeSmokeParams &p)
     : BaseMemProbe(p),
       stats(this),
       recordFactory(),
@@ -19,8 +20,8 @@ Gem5TelemetryProbe::Gem5TelemetryProbe(const Gem5TelemetryProbeParams &p)
 {
 }
 
-Gem5TelemetryProbe::Gem5TelemetryProbeStats::Gem5TelemetryProbeStats(
-    Gem5TelemetryProbe *parent)
+Gem5TelemetryProbeSmoke::Gem5TelemetryProbeSmokeStats::
+Gem5TelemetryProbeSmokeStats(Gem5TelemetryProbeSmoke *parent)
     : statistics::Group(parent),
       ADD_STAT(traceRecords, statistics::units::Count::get(),
                "Number of MemoryTrace records emitted"),
@@ -32,24 +33,27 @@ Gem5TelemetryProbe::Gem5TelemetryProbeStats::Gem5TelemetryProbeStats(
 }
 
 void
-Gem5TelemetryProbe::DataUpdateListener::notify(const CacheDataUpdateProbeArg &arg)
+Gem5TelemetryProbeSmoke::DataUpdateListener::notify(
+    const CacheDataUpdateProbeArg &arg)
 {
     parent.handleDataUpdate(arg);
 }
 
 bool
-Gem5TelemetryProbe::inferHitFromProbeName() const
+Gem5TelemetryProbeSmoke::inferHitFromProbeName() const
 {
-    const auto &p = dynamic_cast<const Gem5TelemetryProbeParams &>(params());
+    const auto &p =
+        dynamic_cast<const Gem5TelemetryProbeSmokeParams &>(params());
     return p.probe_name == "Hit";
 }
 
 void
-Gem5TelemetryProbe::regProbeListeners()
+Gem5TelemetryProbeSmoke::regProbeListeners()
 {
     BaseMemProbe::regProbeListeners();
 
-    const auto &p = dynamic_cast<const Gem5TelemetryProbeParams &>(params());
+    const auto &p =
+        dynamic_cast<const Gem5TelemetryProbeSmokeParams &>(params());
     dataUpdateListeners.reserve(p.manager.size());
     for (int i = 0; i < p.manager.size(); ++i) {
         ProbeManager *const mgr(p.manager[i]->getProbeManager());
@@ -59,7 +63,7 @@ Gem5TelemetryProbe::regProbeListeners()
 }
 
 void
-Gem5TelemetryProbe::handleRequest(const probing::PacketInfo &pktInfo)
+Gem5TelemetryProbeSmoke::handleRequest(const probing::PacketInfo &pktInfo)
 {
     const bool isHit = inferHitFromProbeName();
     const bool isEviction = EvictionEvent::packetLooksLikeEviction(pktInfo);
@@ -87,7 +91,7 @@ Gem5TelemetryProbe::handleRequest(const probing::PacketInfo &pktInfo)
 }
 
 void
-Gem5TelemetryProbe::handleDataUpdate(const CacheDataUpdateProbeArg &arg)
+Gem5TelemetryProbeSmoke::handleDataUpdate(const CacheDataUpdateProbeArg &arg)
 {
     auto eventOpt = EvictionEvent::fromDataUpdateHook(arg);
     if (!eventOpt.has_value()) {
@@ -116,7 +120,7 @@ Gem5TelemetryProbe::handleDataUpdate(const CacheDataUpdateProbeArg &arg)
 }
 
 void
-Gem5TelemetryProbe::recordEviction(const EvictionEvent &event)
+Gem5TelemetryProbeSmoke::recordEviction(const EvictionEvent &event)
 {
     const auto record = recordFactory.buildEvictionRecord(event);
     if (!buffer.tryPush(record)) {
@@ -128,7 +132,7 @@ Gem5TelemetryProbe::recordEviction(const EvictionEvent &event)
 }
 
 bool
-Gem5TelemetryProbe::tryPopRecord(TelemetryRecord &outRecord)
+Gem5TelemetryProbeSmoke::tryPopRecord(TelemetryRecord &outRecord)
 {
     auto value = buffer.tryPop();
     if (!value.has_value()) {
