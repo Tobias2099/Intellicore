@@ -16,7 +16,7 @@ namespace intellicore
 class ThreadBuffer
 {
   public:
-    explicit ThreadBuffer(uint32_t capacity = 65536)
+    explicit ThreadBuffer(uint32_t capacity = 65537)
         : slots(capacity), head(0), tail(0), droppedTraces(0), capacity_(capacity)
     {}
 
@@ -61,7 +61,7 @@ class ThreadBuffer
 
     uint32_t freeSlots() const
     {
-        return capacity_ - size();
+        return capacity_ - size() - 1;
     }
 
     uint64_t droppedCount() const
