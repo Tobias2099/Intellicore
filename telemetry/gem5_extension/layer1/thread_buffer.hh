@@ -61,7 +61,7 @@ class ThreadBuffer
 
     uint32_t freeSlots() const
     {
-        return capacity_ - size() - 1;
+        return capacity_ - size();
     }
 
     uint64_t droppedCount() const

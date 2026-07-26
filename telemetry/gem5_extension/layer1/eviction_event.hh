@@ -71,14 +71,6 @@ class EvictionEvent
         return packed;
     }
 
-    static std::array<uint8_t, 8>
-    buildLineDataVector(const EvictionLineData &lineData)
-    {
-        std::array<uint8_t, 8> fields{};
-        fields[0] = packLineData(lineData);
-        return fields;
-    }
-
     void setSaturationFromRefCount(uint64_t refCount)
     {
         line.saturationCounter = static_cast<uint8_t>(
