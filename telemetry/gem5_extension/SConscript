@@ -3,7 +3,14 @@
 Import('*')
 
 SimObject('IntellicoreProbeSmoke.py', sim_objects=['IntellicoreProbeSmoke'])
-SimObject('Gem5TelemetryProbe.py', sim_objects=['Gem5TelemetryProbe'])
+SimObject(
+    'Gem5TelemetryProbeSmoke.py',
+    sim_objects=['Gem5TelemetryProbeSmoke']
+)
+SimObject('layer1/Gem5TelemetryProbe.py', sim_objects=['Gem5TelemetryProbe'])
 Source('intellicore_probe_smoke.cc')
-Source('gem5_telemetry_probe.cc')
+Source('gem5_telemetry_probe_smoke.cc')
+Source('layer1/gem5_telemetry_probe.cc')
 Source('layer1/telemetry_record_factory.cc')
+Source('layer1/thread_telemetry_state.cc')
+Source('layer1/thread_telemetry_registry.cc')
