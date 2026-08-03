@@ -1,6 +1,6 @@
 from m5.objects.BaseMemProbe import BaseMemProbe
+from m5.objects.telemetry_config import DEFAULT_THREAD_BUFFER_CAPACITY
 from m5.params import *
-from telemetry_config import DEFAULT_THREAD_BUFFER_CAPACITY
 
 
 class Gem5TelemetryProbeSmoke(BaseMemProbe):

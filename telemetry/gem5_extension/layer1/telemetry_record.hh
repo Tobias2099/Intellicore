@@ -2,6 +2,7 @@
 #define __INTELLICORE_LAYER1_TELEMETRY_RECORD_HH__
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 #include "layer1/telemetry_types.hh"
@@ -20,7 +21,7 @@ class TelemetryRecord
     static constexpr uint8_t EvictedWayShift = 3;
     static constexpr uint8_t EvictedWayMask = 0x7;
     static constexpr uint8_t UnknownWay = 0x7;
-    static constexpr size_t EncodedSize = 16;
+    static constexpr std::size_t EncodedSize = 16;
 
     uint8_t metadata = 0;
     uint32_t recordCounter = 0;
@@ -85,7 +86,7 @@ class TelemetryRecord
         payload.fill(0);
         payload[0] = trace.threadId;
         payload[1] = trace.opType;
-        for (size_t i = 0; i < sizeof(trace.address); ++i) {
+        for (std::size_t i = 0; i < sizeof(trace.address); ++i) {
             payload[2 + i] = static_cast<uint8_t>((trace.address >> (8 * i)) & 0xFFu);
         }
         payload[10] = trace.coherenceMap;
@@ -97,7 +98,7 @@ class TelemetryRecord
         trace.threadId = payload[0];
         trace.opType = payload[1];
         uint64_t address = 0;
-        for (size_t i = 0; i < sizeof(address); ++i) {
+        for (std::size_t i = 0; i < sizeof(address); ++i) {
             address |= static_cast<uint64_t>(payload[2 + i]) << (8 * i);
         }
         trace.address = address;
@@ -108,7 +109,7 @@ class TelemetryRecord
     void setEvictionSnapshotPayload(const EvictionSnapshotPayload &snapshot)
     {
         payload.fill(0);
-        for (size_t i = 0; i < snapshot.fields.size(); ++i) {
+        for (std::size_t i = 0; i < snapshot.fields.size(); ++i) {
             payload[i] = snapshot.fields[i];
         }
     }
@@ -116,7 +117,7 @@ class TelemetryRecord
     EvictionSnapshotPayload evictionSnapshotPayload() const
     {
         EvictionSnapshotPayload snapshot;
-        for (size_t i = 0; i < snapshot.fields.size(); ++i) {
+        for (std::size_t i = 0; i < snapshot.fields.size(); ++i) {
             snapshot.fields[i] = payload[i];
         }
         return snapshot;
@@ -130,7 +131,7 @@ class TelemetryRecord
         out[2] = static_cast<uint8_t>((recordCounter >> 8) & 0xFFu);
         out[3] = static_cast<uint8_t>((recordCounter >> 16) & 0xFFu);
         out[4] = static_cast<uint8_t>((recordCounter >> 24) & 0xFFu);
-        for (size_t i = 0; i < payload.size(); ++i) {
+        for (std::size_t i = 0; i < payload.size(); ++i) {
             out[5 + i] = payload[i];
         }
         return out;
