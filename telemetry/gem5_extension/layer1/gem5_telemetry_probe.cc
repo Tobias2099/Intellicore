@@ -1,5 +1,8 @@
 #include "layer1/gem5_telemetry_probe.hh"
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <functional>
 
 #include "base/logging.hh"
@@ -17,8 +20,10 @@ Gem5TelemetryProbe::Gem5TelemetryProbe(const Gem5TelemetryProbeParams &p)
       registry(p.thread_buffer_capacity, p.core_id),
       hitProbeName(p.hit_probe_name),
       missProbeName(p.miss_probe_name),
+      fillProbeName(p.fill_probe_name),
+      replacementProbeName(p.replacement_probe_name),
       cacheLineSize(p.cache_line_size),
-      accessListeners(),
+      listeners(),
       saturationCounters()
 {
     fatal_if(cacheLineSize == 0 || (cacheLineSize & (cacheLineSize - 1)) != 0,
@@ -35,7 +40,12 @@ Gem5TelemetryProbe::Gem5TelemetryProbeStats::Gem5TelemetryProbeStats(
       ADD_STAT(migrationRecords, statistics::units::Count::get(),
                "Number of thread migration records emitted"),
       ADD_STAT(droppedRecords, statistics::units::Count::get(),
-               "Number of records dropped due to full thread buffers")
+               "Number of records dropped due to full thread buffers"),
+      ADD_STAT(unattributedReplacements, statistics::units::Count::get(),
+               "Replacement events without a linked demand-miss trace"),
+      ADD_STAT(malformedReplacementSnapshots,
+               statistics::units::Count::get(),
+               "Replacement events with malformed set, way, or LRU metadata")
 {
 }
 
@@ -46,16 +56,33 @@ Gem5TelemetryProbe::AccessListener::notify(const CacheAccessProbeArg &arg)
 }
 
 void
+Gem5TelemetryProbe::FillListener::notify(const CacheAccessProbeArg &arg)
+{
+    parent.handleFill(arg);
+}
+
+void
+Gem5TelemetryProbe::ReplacementListener::notify(
+    const CacheReplacementProbeArg &arg)
+{
+    parent.handleReplacement(arg);
+}
+
+void
 Gem5TelemetryProbe::regProbeListeners()
 {
     const auto &p = dynamic_cast<const Gem5TelemetryProbeParams &>(params());
-    accessListeners.reserve(p.manager.size() * 2);
+    listeners.reserve(p.manager.size() * 4);
     for (int i = 0; i < p.manager.size(); ++i) {
         ProbeManager *const mgr(p.manager[i]->getProbeManager());
-        accessListeners.push_back(
+        listeners.push_back(
             mgr->connect<AccessListener>(*this, hitProbeName, true));
-        accessListeners.push_back(
+        listeners.push_back(
             mgr->connect<AccessListener>(*this, missProbeName, false));
+        listeners.push_back(
+            mgr->connect<FillListener>(*this, fillProbeName));
+        listeners.push_back(
+            mgr->connect<ReplacementListener>(*this, replacementProbeName));
     }
 }
 
@@ -80,18 +107,25 @@ Gem5TelemetryProbe::handleAccess(const CacheAccessProbeArg &arg, bool isHit)
     }
 
     stats.traceRecords++;
+
+    if (!isHit && isDemandMiss(arg.pkt)) {
+        auto extension = arg.pkt->req->getExtension<TraceLinkExtension>();
+        if (!extension) {
+            extension = std::make_shared<TraceLinkExtension>();
+            arg.pkt->req->setExtension(extension);
+        }
+        extension->set(this, TraceLink{record.recordCounter, threadId});
+    }
 }
 
 bool
-Gem5TelemetryProbe::recordEviction(const EvictionEvent &event)
+Gem5TelemetryProbe::recordEviction(
+    const EvictionEvent &event,
+    ThreadId threadId,
+    uint32_t correlatedRecordCounter)
 {
-    const ThreadId threadId = static_cast<ThreadId>(event.requestorId & 0xFFu);
-    EvictionEvent enrichedEvent = event;
-    if (event.cache != nullptr) {
-        enrichedEvent.line.saturationCounter = saturationCounterFor(
-            *event.cache, event.address, event.isSecure);
-    }
-    const auto record = recordFactory.buildEvictionRecord(enrichedEvent);
+    const auto record = recordFactory.buildEvictionRecord(
+        event, correlatedRecordCounter);
     if (!registry.getOrCreateState(threadId).append(record)) {
         stats.droppedRecords++;
         return false;
@@ -99,6 +133,103 @@ Gem5TelemetryProbe::recordEviction(const EvictionEvent &event)
 
     stats.evictionRecords++;
     return true;
+}
+
+void
+Gem5TelemetryProbe::handleReplacement(const CacheReplacementProbeArg &arg)
+{
+    if (arg.cause != CacheReplacementCause::Allocation ||
+        arg.triggerPkt == nullptr || arg.triggerPkt->req == nullptr) {
+        stats.unattributedReplacements++;
+        return;
+    }
+
+    auto extension =
+        arg.triggerPkt->req->getExtension<TraceLinkExtension>();
+    const TraceLink *const link = extension ? extension->find(this) : nullptr;
+    if (link == nullptr) {
+        stats.unattributedReplacements++;
+        return;
+    }
+
+    const TraceLink trace_link = *link;
+    if (arg.lines.size() != 8 || arg.victimWay >= 8 ||
+        arg.lines[arg.victimWay].way != arg.victimWay ||
+        !arg.lines[arg.victimWay].valid) {
+        stats.malformedReplacementSnapshots++;
+        clearTraceLink(arg.triggerPkt->req);
+        return;
+    }
+
+    const std::size_t valid_lines = std::count_if(
+        arg.lines.begin(), arg.lines.end(),
+        [](const CacheReplacementLineInfo &line) { return line.valid; });
+    std::array<bool, 8> ways_seen{};
+    std::array<bool, 8> ranks_seen{};
+    for (const auto &line : arg.lines) {
+        if (line.way >= ways_seen.size() || ways_seen[line.way] ||
+            (line.valid &&
+             (line.lruRank >= valid_lines || ranks_seen[line.lruRank]))) {
+            stats.malformedReplacementSnapshots++;
+            clearTraceLink(arg.triggerPkt->req);
+            return;
+        }
+        ways_seen[line.way] = true;
+        if (line.valid) {
+            ranks_seen[line.lruRank] = true;
+        }
+    }
+
+    EvictionEvent event;
+    event.address = arg.lines[arg.victimWay].addr;
+    event.requestorId = arg.triggerPkt->req->requestorId();
+    event.isHit = false;
+    event.isEviction = true;
+    event.evictionWayIndex = arg.victimWay;
+    event.isSecure = arg.lines[arg.victimWay].isSecure;
+
+    for (const auto &source : arg.lines) {
+        panic_if(source.way >= event.lines.size(),
+                 "Replacement snapshot contains an out-of-range way");
+        auto &destination = event.lines[source.way];
+        destination.lruRank = source.lruRank;
+        destination.dirtyBit = source.dirty;
+        destination.invalidBit = !source.valid;
+        if (source.valid) {
+            destination.saturationCounter = saturationCounterFor(
+                arg.cache, source.addr, source.isSecure);
+        }
+    }
+
+    recordEviction(
+        event, trace_link.threadId, trace_link.recordCounter);
+
+    clearTraceLink(arg.triggerPkt->req);
+}
+
+void
+Gem5TelemetryProbe::handleFill(const CacheAccessProbeArg &arg)
+{
+    clearTraceLink(arg.pkt->req);
+}
+
+void
+Gem5TelemetryProbe::clearTraceLink(const RequestPtr &request)
+{
+    auto extension = request->getExtension<TraceLinkExtension>();
+    if (!extension) {
+        return;
+    }
+    extension->erase(this);
+    if (extension->empty()) {
+        request->removeExtension<TraceLinkExtension>();
+    }
+}
+
+bool
+Gem5TelemetryProbe::isDemandMiss(const PacketPtr &pkt) const
+{
+    return pkt->isDemand();
 }
 
 bool
