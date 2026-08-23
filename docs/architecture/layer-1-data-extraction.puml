@@ -14,8 +14,9 @@ package "gem5 integration" #E8F4FD {
 
   class Gem5TelemetryProbe {
     - registry: ThreadTelemetryRegistry&
-    + handleRequest(pktInfo: PacketInfo): void
-    + recordEviction(event: EvictionEvent): void
+    + handleAccess(arg: CacheAccessProbeArg): void
+    + handleReplacement(arg: CacheReplacementProbeArg): void
+    + recordEviction(event: EvictionEvent, traceId: uint32_t): void
     + recordMigration(threadId: ThreadId, newCoreId: CoreId): void
   }
 
@@ -61,6 +62,7 @@ package "Layer 1 - Data Extraction" #F3FAF3 {
   }
 
   note right of EvictionSnapshotPayload
+    fields[0..7] map directly to L1D ways 0..7
     each lineData: uint8_t bit layout
     [1:0]  saturationCounter: 2 bits
     [4:2]  lruRank: 3 bits
@@ -99,7 +101,7 @@ package "Layer 1 - Data Extraction" #F3FAF3 {
   class TelemetryRecordFactory {
     {static} - recordCounter: atomic<uint64_t>
     + buildTraceRecord(pktInfo: PacketInfo, state: ThreadTelemetryState): TelemetryRecord
-    + buildEvictionRecord(event: EvictionEvent, state: ThreadTelemetryState): TelemetryRecord
+    + buildEvictionRecord(event: EvictionEvent, traceId: uint32_t): TelemetryRecord
     + buildMigrationRecord(state: ThreadTelemetryState, newCoreId: CoreId): TelemetryRecord
     {static} - allocateRecordId(): uint64_t
   }
@@ -126,9 +128,17 @@ TelemetryRecord ..> EvictionSnapshotPayload : payload when kind = 1
 MemoryTracePayload --> MemoryEventKind
 
 note right of TelemetryRecordFactory
-  recordCounter assigns one global ordering
-  across all telemetry records and all threads.
-  This must be atomic on the hot path.
+  New traces and migrations receive a globally
+  allocated recordCounter. An eviction snapshot
+  reuses its causative memory trace's value, making
+  recordCounter the pair's correlation identifier.
+end note
+
+note bottom of Gem5TelemetryProbe
+  L1D demand miss: emit trace, then attach its ID
+  to Request. The MSHR/fill path preserves Request.
+  A true pre-invalidation Replacement event captures
+  all eight ways and emits the correlated snapshot.
 end note
 
 note bottom of ThreadBuffer

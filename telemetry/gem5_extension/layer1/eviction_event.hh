@@ -1,13 +1,11 @@
 #ifndef __INTELLICORE_LAYER1_EVICTION_EVENT_HH__
 #define __INTELLICORE_LAYER1_EVICTION_EVENT_HH__
 
-#include <algorithm>
 #include <array>
 #include <cstdint>
-#include <optional>
 
-#include "mem/cache/cache_probe_arg.hh"
-#include "sim/probe/mem.hh"
+#include "base/types.hh"
+#include "mem/request.hh"
 
 namespace gem5
 {
@@ -26,43 +24,14 @@ struct EvictionLineData
 class EvictionEvent
 {
   public:
-    static constexpr uint8_t UnknownWay = 0x7;
-
     Addr address = 0;
     RequestorID requestorId = Request::invldRequestorId;
 
     bool isHit = false;
     bool isEviction = false;
-    uint8_t evictionWayIndex = UnknownWay;
-    EvictionLineData line;
-    const CacheAccessor *cache = nullptr;
+    uint8_t evictionWayIndex = 0;
+    std::array<EvictionLineData, 8> lines{};
     bool isSecure = false;
-
-    static bool packetLooksLikeEviction(const probing::PacketInfo &pkt)
-    {
-        return pkt.cmd.isEviction() ||
-               pkt.cmd == MemCmd::WritebackDirty ||
-               pkt.cmd == MemCmd::WritebackClean ||
-               pkt.cmd == MemCmd::CleanEvict;
-    }
-
-    static std::optional<EvictionEvent>
-    fromDataUpdateHook(const CacheDataUpdateProbeArg &arg)
-    {
-        if (!arg.newData.empty()) {
-            return std::nullopt;
-        }
-
-        EvictionEvent event;
-        event.address = arg.addr;
-        event.requestorId = arg.requestorID;
-        event.isEviction = true;
-        event.evictionWayIndex = UnknownWay;
-        event.cache = &arg.accessor;
-        event.isSecure = arg.isSecure;
-
-        return event;
-    }
 
     static uint8_t packLineData(const EvictionLineData &lineData)
     {
@@ -76,17 +45,13 @@ class EvictionEvent
     }
 
     static std::array<uint8_t, 8>
-    buildLineDataVector(const EvictionLineData &lineData)
+    buildLineDataVector(const std::array<EvictionLineData, 8> &lineData)
     {
         std::array<uint8_t, 8> fields{};
-        fields[0] = packLineData(lineData);
+        for (std::size_t way = 0; way < fields.size(); ++way) {
+            fields[way] = packLineData(lineData[way]);
+        }
         return fields;
-    }
-
-    void setSaturationFromRefCount(uint64_t refCount)
-    {
-        line.saturationCounter = static_cast<uint8_t>(
-            std::min<uint64_t>(refCount, 0x3u));
     }
 };
 

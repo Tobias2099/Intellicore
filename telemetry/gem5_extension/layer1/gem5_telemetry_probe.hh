@@ -10,6 +10,7 @@
 
 #include "cpu/thread_context.hh"
 #include "layer1/telemetry_record_factory.hh"
+#include "layer1/trace_link.hh"
 #include "layer1/thread_telemetry_registry.hh"
 #include "mem/cache/cache_probe_arg.hh"
 #include "sim/probe/probe.hh"
@@ -33,7 +34,10 @@ class Gem5TelemetryProbe : public SimObject
 
     bool tryPopRecord(ThreadId threadId, TelemetryRecord &outRecord);
 
-    bool recordEviction(const EvictionEvent &event);
+    bool recordEviction(
+        const EvictionEvent &event,
+        ThreadId threadId,
+        uint32_t correlatedRecordCounter);
 
     bool recordMigration(
         ThreadId threadId,
@@ -69,6 +73,29 @@ class Gem5TelemetryProbe : public SimObject
         const bool isHit;
     };
 
+    struct FillListener : public ProbeListenerArgBase<CacheAccessProbeArg>
+    {
+        FillListener(Gem5TelemetryProbe &_parent, std::string name)
+            : ProbeListenerArgBase(std::move(name)), parent(_parent)
+        {}
+
+        void notify(const CacheAccessProbeArg &arg) override;
+
+        Gem5TelemetryProbe &parent;
+    };
+
+    struct ReplacementListener :
+        public ProbeListenerArgBase<CacheReplacementProbeArg>
+    {
+        ReplacementListener(Gem5TelemetryProbe &_parent, std::string name)
+            : ProbeListenerArgBase(std::move(name)), parent(_parent)
+        {}
+
+        void notify(const CacheReplacementProbeArg &arg) override;
+
+        Gem5TelemetryProbe &parent;
+    };
+
     struct Gem5TelemetryProbeStats : public statistics::Group
     {
         Gem5TelemetryProbeStats(Gem5TelemetryProbe *parent);
@@ -77,6 +104,8 @@ class Gem5TelemetryProbe : public SimObject
         statistics::Scalar evictionRecords;
         statistics::Scalar migrationRecords;
         statistics::Scalar droppedRecords;
+        statistics::Scalar unattributedReplacements;
+        statistics::Scalar malformedReplacementSnapshots;
     } stats;
 
     struct LineKey
@@ -98,7 +127,11 @@ class Gem5TelemetryProbe : public SimObject
     };
 
     void handleAccess(const CacheAccessProbeArg &arg, bool isHit);
+    void handleFill(const CacheAccessProbeArg &arg);
+    void handleReplacement(const CacheReplacementProbeArg &arg);
     uint8_t updateSaturationCounter(const CacheAccessProbeArg &arg);
+    void clearTraceLink(const RequestPtr &request);
+    bool isDemandMiss(const PacketPtr &pkt) const;
     LineKey lineKeyFor(
         const CacheAccessor &cache, Addr address, bool isSecure) const;
     static ThreadId threadIdFor(const PacketPtr &pkt);
@@ -108,8 +141,10 @@ class Gem5TelemetryProbe : public SimObject
 
     const std::string hitProbeName;
     const std::string missProbeName;
+    const std::string fillProbeName;
+    const std::string replacementProbeName;
     const unsigned cacheLineSize;
-    std::vector<ProbeListenerPtr<>> accessListeners;
+    std::vector<ProbeListenerPtr<>> listeners;
     std::unordered_map<LineKey, uint8_t, LineKeyHash> saturationCounters;
 };
 

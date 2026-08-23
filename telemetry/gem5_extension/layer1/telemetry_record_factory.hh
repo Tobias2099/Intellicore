@@ -22,7 +22,9 @@ class TelemetryRecordFactory
         bool isEviction,
         uint8_t evictionWayIndex) const;
 
-    TelemetryRecord buildEvictionRecord(const EvictionEvent &event) const;
+    TelemetryRecord buildEvictionRecord(
+        const EvictionEvent &event,
+        uint32_t correlatedRecordCounter) const;
 
     TelemetryRecord buildMigrationRecord(
         uint8_t threadId,
