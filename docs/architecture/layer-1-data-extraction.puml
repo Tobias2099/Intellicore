@@ -16,7 +16,7 @@ package "gem5 integration" #E8F4FD {
     - registry: ThreadTelemetryRegistry&
     + handleAccess(arg: CacheAccessProbeArg): void
     + handleReplacement(arg: CacheReplacementProbeArg): void
-    + recordEviction(event: EvictionEvent, traceId: uint32_t): void
+    + recordEviction(event: EvictionEvent, threadId: ThreadId, correlatedRecordCounter: uint32_t): bool
     + recordMigration(threadId: ThreadId, newCoreId: CoreId): void
   }
 
@@ -68,7 +68,7 @@ package "Layer 1 - Data Extraction" #F3FAF3 {
     [4:2]  lruRank: 3 bits
     [5]    dirtyBit: 1 bit
     [6]    invalidBit: 1 bit
-    [7]    accessBit: 1 bit
+    [7]    reserved: 1 bit (always 0)
   end note
 
   class ThreadBuffer <<SPSC>> {
@@ -101,7 +101,7 @@ package "Layer 1 - Data Extraction" #F3FAF3 {
   class TelemetryRecordFactory {
     {static} - recordCounter: atomic<uint64_t>
     + buildTraceRecord(pktInfo: PacketInfo, state: ThreadTelemetryState): TelemetryRecord
-    + buildEvictionRecord(event: EvictionEvent, traceId: uint32_t): TelemetryRecord
+    + buildEvictionRecord(event: EvictionEvent, correlatedRecordCounter: uint32_t): TelemetryRecord
     + buildMigrationRecord(state: ThreadTelemetryState, newCoreId: CoreId): TelemetryRecord
     {static} - allocateRecordId(): uint64_t
   }
