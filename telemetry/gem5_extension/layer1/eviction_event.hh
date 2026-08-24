@@ -18,7 +18,6 @@ struct EvictionLineData
     uint8_t lruRank = 0;
     bool dirtyBit = false;
     bool invalidBit = false;
-    bool accessBit = false;
 };
 
 class EvictionEvent
@@ -40,7 +39,7 @@ class EvictionEvent
         packed |= ((lineData.lruRank & 0x7u) << 2);
         packed |= (lineData.dirtyBit ? 1u : 0u) << 5;
         packed |= (lineData.invalidBit ? 1u : 0u) << 6;
-        packed |= (lineData.accessBit ? 1u : 0u) << 7;
+        // Bit 7 is reserved until interval-based access-bit tracking exists.
         return packed;
     }
 

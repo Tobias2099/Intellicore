@@ -33,6 +33,17 @@ through 7. `lruRank` is the line's true access-recency rank, tracked
 independently of the active replacement policy: 0 is the least recently used
 valid line and 7 is the most recently used line in a full set. Empty-way fills
 do not emit eviction snapshots, and their request linkage is removed at `Fill`.
+Each way byte currently stores the two-bit saturation counter, three-bit LRU
+rank, dirty bit, and invalid bit. Bit 7 is reserved and emitted as zero until
+the separate interval-based access-bit design is implemented; the hardware
+prefetch flag is not substituted because it has different semantics.
+
+Each L1D probe currently owns its own per-core `ThreadTelemetryRegistry`.
+Sharing one registry across probes, including migration-continuous per-thread
+buffers, is a separate integration task. The buffers are intentionally bounded
+and expose `tryPopRecord()` for the future Layer 2 consumer. Until that consumer
+is wired, long simulations can fill a buffer; `droppedRecords` reports every
+record rejected after capacity is reached.
 
 Stock gem5 does not publish per-thread `activate`, `suspend`, or `halt` probe
 points. Exact lifecycle-based migration detection therefore requires either

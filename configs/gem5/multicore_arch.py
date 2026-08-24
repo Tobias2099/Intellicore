@@ -13,7 +13,7 @@ parser.add_argument("--repl", choices=["LRU", "LFU", "MRU"], default="LRU",
 parser.add_argument("--mode", choices=["sequential", "stride", "random", "hotcold"],
           default="sequential", help="Memory access pattern")
 parser.add_argument("--prefetch", choices=["none", "stride", "tagged", "delta"],
-          default="none", help="Prefetcher: none, stride, tagged, delta")
+          default="delta", help="Prefetcher: none, stride, tagged, delta")
 parser.add_argument("--threads", type=int, default=1,
           help="Worker threads spawned by the memory_patterns process")
 parser.add_argument("--elements", type=int, default=1_048_576,
