@@ -13,6 +13,8 @@ namespace gem5
 namespace intellicore
 {
 
+class ThreadTelemetryRegistry;
+
 class ThreadTelemetryState
 {
   public:
@@ -29,9 +31,11 @@ class ThreadTelemetryState
     const ThreadBuffer &buffer() const;
 
     const ThreadId threadId;
-    CoreId coreId;
 
   private:
+    friend class ThreadTelemetryRegistry;
+
+    CoreId coreId;
     ThreadBuffer buffer_;
 };
 

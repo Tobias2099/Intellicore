@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <mutex>
 #include <optional>
 
 #include "layer1/telemetry_types.hh"
@@ -33,6 +34,13 @@ class ThreadTelemetryRegistry
 
     void migrate(ThreadId threadId, CoreId newCoreId);
 
+    std::optional<CoreId> coreIdFor(ThreadId threadId) const;
+
+    bool migrateIfCurrent(
+        ThreadId threadId,
+        CoreId expectedCoreId,
+        CoreId newCoreId);
+
     std::size_t size() const;
 
   private:
@@ -42,6 +50,7 @@ class ThreadTelemetryRegistry
     const uint32_t bufferCapacity;
     const CoreId defaultCoreId;
     std::size_t stateCount;
+    mutable std::mutex registryMutex;
 };
 
 } // namespace intellicore
