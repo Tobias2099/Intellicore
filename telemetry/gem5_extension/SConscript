@@ -4,17 +4,12 @@ Import('*')
 
 PySource('m5.objects', 'telemetry_config.py')
 SimObject('IntellicoreProbeSmoke.py', sim_objects=['IntellicoreProbeSmoke'])
-SimObject(
-    'Gem5TelemetryProbeSmoke.py',
-    sim_objects=['Gem5TelemetryProbeSmoke']
-)
 SimObject('layer1/Gem5TelemetryProbe.py', sim_objects=['Gem5TelemetryProbe'])
 SimObject(
     'layer1/X86TelemetryTimingSimpleCPU.py',
     sim_objects=['X86TelemetryTimingSimpleCPU']
 )
 Source('intellicore_probe_smoke.cc')
-Source('gem5_telemetry_probe_smoke.cc')
 Source('layer1/gem5_telemetry_probe.cc')
 Source('layer1/telemetry_timing_simple_cpu.cc')
 Source('layer1/telemetry_record_factory.cc')

@@ -14,6 +14,10 @@ class Gem5TelemetryProbe(SimObject):
     )
     hit_probe_name = Param.String("Hit", "Cache hit probe point")
     miss_probe_name = Param.String("Miss", "Cache miss probe point")
+    fill_probe_name = Param.String("Fill", "Cache fill probe point")
+    replacement_probe_name = Param.String(
+        "Replacement", "True cache replacement probe point"
+    )
     core_id = Param.UInt8(0, "Core that owns this telemetry probe")
     cache_line_size = Param.Unsigned(
         Parent.cache_line_size, "Cache-line size used by saturation tracking"

@@ -16,6 +16,10 @@ parser.add_argument("--prefetch", choices=["none", "stride", "tagged", "delta"],
           default="delta", help="Prefetcher: none, stride, tagged, delta")
 parser.add_argument("--threads", type=int, default=1,
           help="Worker threads spawned by the memory_patterns process")
+parser.add_argument("--elements", type=int, default=1_048_576,
+          help="Number of integers used by the synthetic benchmark")
+parser.add_argument("--telemetry-buffer-capacity", type=int, default=65_536,
+          help="Usable records in each per-thread telemetry ring buffer")
 parser.add_argument("--benchmark", choices=["synthetic", "parsec"], default="synthetic",
           help="Benchmark family to run")
 parser.add_argument("--parsec-workload", default="blackscholes",
@@ -72,7 +76,7 @@ class L1ICache(Cache):
 
 class L1DCache(Cache):
   size = "32KiB"
-  assoc = 2
+  assoc = 8
   tag_latency = 2
   data_latency = 2
   response_latency = 2
@@ -115,9 +119,9 @@ system.mem_ctrl.dram.range = system.mem_ranges[0]
 system.mem_ctrl.port = system.membus.mem_side_ports
 
 num_cores = 4
-system.cpu = [X86TimingSimpleCPU(cpu_id=i) for i in range(num_cores)]
+system.cpu = [X86TelemetryTimingSimpleCPU(cpu_id=i) for i in range(num_cores)]
 
-for cpu in system.cpu:
+for core_id, cpu in enumerate(system.cpu):
   cpu.icache = L1ICache()
   cpu.dcache = L1DCache()
 
@@ -144,6 +148,16 @@ for cpu in system.cpu:
   cpu.icache.mem_side = system.l2bus.cpu_side_ports
   cpu.dcache.mem_side = system.l2bus.cpu_side_ports
 
+  # Only L1D drives the RL telemetry stream. One probe per core keeps the
+  # request-correlation key and per-thread buffers local to that L1D.
+  telemetry_probe = Gem5TelemetryProbe(
+    manager=[cpu.dcache],
+    core_id=core_id,
+    cache_line_size=system.cache_line_size,
+    thread_buffer_capacity=args.telemetry_buffer_capacity,
+  )
+  cpu.telemetry_probe = telemetry_probe
+
   cpu.createInterruptController()
   cpu.interrupts[0].pio = system.membus.mem_side_ports
   cpu.interrupts[0].int_requestor = system.membus.cpu_side_ports
@@ -155,7 +169,7 @@ def synthetic_command():
   binary = "/workspace/benchmarks/bin/memory_patterns"
   modes = ["sequential", "stride", "random", "hotcold"]
   selected_mode = args.mode
-  benchmark_size = "1048576" # 2^20 elements, ~4 MiB total size
+  benchmark_size = str(args.elements)
   thread_count = str(args.threads)
   return binary, [binary, selected_mode, benchmark_size, thread_count], None, []
 
