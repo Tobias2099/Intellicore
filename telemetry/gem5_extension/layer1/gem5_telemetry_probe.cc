@@ -17,7 +17,8 @@ Gem5TelemetryProbe::Gem5TelemetryProbe(const Gem5TelemetryProbeParams &p)
     : SimObject(p),
       stats(this),
       recordFactory(),
-      registry(p.thread_buffer_capacity, p.core_id),
+      registry(p.registry),
+      coreId(p.core_id),
       hitProbeName(p.hit_probe_name),
       missProbeName(p.miss_probe_name),
       fillProbeName(p.fill_probe_name),
@@ -26,6 +27,8 @@ Gem5TelemetryProbe::Gem5TelemetryProbe(const Gem5TelemetryProbeParams &p)
       listeners(),
       saturationCounters()
 {
+    fatal_if(registry == nullptr,
+             "Gem5TelemetryProbe requires a shared telemetry registry");
     fatal_if(cacheLineSize == 0 || (cacheLineSize & (cacheLineSize - 1)) != 0,
              "Gem5TelemetryProbe cache_line_size must be a power of two");
 }
@@ -101,7 +104,7 @@ Gem5TelemetryProbe::handleAccess(const CacheAccessProbeArg &arg, bool isHit)
     const auto record = recordFactory.buildTraceRecord(
         pktInfo, isHit, false, 0);
 
-    if (!registry.getOrCreateState(threadId).append(record)) {
+    if (!registry->getOrCreateState(threadId, coreId).append(record)) {
         stats.droppedRecords++;
         return;
     }
@@ -126,7 +129,7 @@ Gem5TelemetryProbe::recordEviction(
 {
     const auto record = recordFactory.buildEvictionRecord(
         event, correlatedRecordCounter);
-    if (!registry.getOrCreateState(threadId).append(record)) {
+    if (!registry->getOrCreateState(threadId, coreId).append(record)) {
         stats.droppedRecords++;
         return false;
     }
@@ -239,11 +242,11 @@ Gem5TelemetryProbe::recordMigration(
     CoreId newCoreId,
     Tick currentTick)
 {
-    if (!registry.migrateIfCurrent(threadId, oldCoreId, newCoreId)) {
+    if (!registry->migrateIfCurrent(threadId, oldCoreId, newCoreId)) {
         return false;
     }
 
-    ThreadTelemetryState *const state = registry.tryGetState(threadId);
+    ThreadTelemetryState *const state = registry->tryGetState(threadId);
     panic_if(state == nullptr,
              "Telemetry state disappeared while recording migration");
     const auto record = recordFactory.buildMigrationRecord(
@@ -269,10 +272,10 @@ Gem5TelemetryProbe::observeThreadContext(
         (contextId != InvalidContextID ? contextId : context.threadId()) &
         0xFFu);
     const CoreId newCoreId = static_cast<CoreId>(context.cpuId() & 0xFFu);
-    const std::optional<CoreId> oldCoreId = registry.coreIdFor(threadId);
+    const std::optional<CoreId> oldCoreId = registry->coreIdFor(threadId);
 
     if (!oldCoreId.has_value()) {
-        registry.migrate(threadId, newCoreId);
+        registry->migrate(threadId, newCoreId);
         return;
     }
     if (*oldCoreId != newCoreId) {
@@ -342,30 +345,19 @@ Gem5TelemetryProbe::tryPopRecord(
     ThreadId threadId,
     TelemetryRecord &outRecord)
 {
-    ThreadTelemetryState *const state = registry.tryGetState(threadId);
-    if (state == nullptr) {
-        return false;
-    }
-
-    auto value = state->buffer().tryPop();
-    if (!value.has_value()) {
-        return false;
-    }
-
-    outRecord = *value;
-    return true;
+    return registry->tryPopRecord(threadId, outRecord);
 }
 
 ThreadTelemetryRegistry &
 Gem5TelemetryProbe::telemetryRegistry()
 {
-    return registry;
+    return *registry;
 }
 
 const ThreadTelemetryRegistry &
 Gem5TelemetryProbe::telemetryRegistry() const
 {
-    return registry;
+    return *registry;
 }
 
 ThreadId

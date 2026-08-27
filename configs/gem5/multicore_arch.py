@@ -103,6 +103,10 @@ system.clk_domain.voltage_domain = VoltageDomain()
 system.mem_mode = "timing"
 system.mem_ranges = [AddrRange("512MB")]
 
+system.telemetry_registry = ThreadTelemetryRegistry(
+  buffer_capacity=args.telemetry_buffer_capacity,
+)
+
 system.l2bus = L2XBar()
 system.membus = SystemXBar()
 
@@ -148,13 +152,13 @@ for core_id, cpu in enumerate(system.cpu):
   cpu.icache.mem_side = system.l2bus.cpu_side_ports
   cpu.dcache.mem_side = system.l2bus.cpu_side_ports
 
-  # Only L1D drives the RL telemetry stream. One probe per core keeps the
-  # request-correlation key and per-thread buffers local to that L1D.
+  # Only L1D drives the RL telemetry stream. Request correlation stays local
+  # to each L1D probe, while all probes append to the shared thread registry.
   telemetry_probe = Gem5TelemetryProbe(
     manager=[cpu.dcache],
     core_id=core_id,
+    registry=system.telemetry_registry,
     cache_line_size=system.cache_line_size,
-    thread_buffer_capacity=args.telemetry_buffer_capacity,
   )
   cpu.telemetry_probe = telemetry_probe
 

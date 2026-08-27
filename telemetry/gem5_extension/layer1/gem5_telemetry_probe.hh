@@ -137,8 +137,9 @@ class Gem5TelemetryProbe : public SimObject
     static ThreadId threadIdFor(const PacketPtr &pkt);
 
     TelemetryRecordFactory recordFactory;
-    ThreadTelemetryRegistry registry;
+    ThreadTelemetryRegistry *const registry;
 
+    const CoreId coreId;
     const std::string hitProbeName;
     const std::string missProbeName;
     const std::string fillProbeName;

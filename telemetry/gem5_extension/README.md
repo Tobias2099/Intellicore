@@ -38,12 +38,14 @@ rank, dirty bit, and invalid bit. Bit 7 is reserved and emitted as zero until
 the separate interval-based access-bit design is implemented; the hardware
 prefetch flag is not substituted because it has different semantics.
 
-Each L1D probe currently owns its own per-core `ThreadTelemetryRegistry`.
-Sharing one registry across probes, including migration-continuous per-thread
-buffers, is a separate integration task. The buffers are intentionally bounded
-and expose `tryPopRecord()` for the future Layer 2 consumer. Until that consumer
-is wired, long simulations can fill a buffer; `droppedRecords` reports every
-record rejected after capacity is reached.
+The system owns one `ThreadTelemetryRegistry` shared by every L1D probe. A
+thread therefore keeps one state, core assignment, record stream, and ring
+buffer when execution moves between cores. Cache-line saturation maps and
+demand-miss replacement links remain local to each probe because they describe
+state in that probe's cache. The buffers are intentionally bounded and expose
+`tryPopRecord()` for the future Layer 2 consumer. Until that consumer is wired,
+long simulations can fill a buffer; `droppedRecords` reports every record
+rejected after capacity is reached.
 
 Stock gem5 does not publish per-thread `activate`, `suspend`, or `halt` probe
 points. Exact lifecycle-based migration detection therefore requires either
@@ -54,5 +56,5 @@ For the X86 timing CPU used by this repository, instantiate
 `X86TelemetryTimingSimpleCPU` instead of `X86TimingSimpleCPU` and assign its
 `telemetry_probe` parameter. The subclass forwards lifecycle operations to
 gem5's `TimingSimpleCPU` implementation, then compares the context's `cpuId()`
-with the registry. Other CPU models require corresponding telemetry-aware
-subclasses.
+with the shared registry. Other CPU models require corresponding
+telemetry-aware subclasses.

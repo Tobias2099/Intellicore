@@ -1,5 +1,5 @@
 from m5.SimObject import SimObject
-from m5.objects.telemetry_config import DEFAULT_THREAD_BUFFER_CAPACITY
+from m5.objects.ThreadTelemetryRegistry import ThreadTelemetryRegistry
 from m5.params import *
 from m5.proxy import Parent
 
@@ -19,10 +19,9 @@ class Gem5TelemetryProbe(SimObject):
         "Replacement", "True cache replacement probe point"
     )
     core_id = Param.UInt8(0, "Core that owns this telemetry probe")
+    registry = Param.ThreadTelemetryRegistry(
+        "System-wide registry shared by all telemetry probes"
+    )
     cache_line_size = Param.Unsigned(
         Parent.cache_line_size, "Cache-line size used by saturation tracking"
-    )
-
-    thread_buffer_capacity = Param.Unsigned(
-        DEFAULT_THREAD_BUFFER_CAPACITY, "Per-probe ring buffer capacity"
     )

@@ -13,7 +13,8 @@ package "gem5 integration" #E8F4FD {
   }
 
   class Gem5TelemetryProbe {
-    - registry: ThreadTelemetryRegistry&
+    - registry: ThreadTelemetryRegistry*
+    - saturationCounters: Map<CacheLine, uint2>
     + handleAccess(arg: CacheAccessProbeArg): void
     + handleReplacement(arg: CacheReplacementProbeArg): void
     + recordEviction(event: EvictionEvent, threadId: ThreadId, correlatedRecordCounter: uint32_t): bool
@@ -93,9 +94,11 @@ package "Layer 1 - Data Extraction" #F3FAF3 {
   }
 
   class ThreadTelemetryRegistry {
+    <<shared system SimObject>>
     - states: Map<ThreadId, ThreadTelemetryState>
-    + stateFor(threadId: ThreadId): ThreadTelemetryState&
+    + stateFor(threadId: ThreadId, initialCoreId: CoreId): ThreadTelemetryState&
     + migrate(threadId: ThreadId, newCoreId: CoreId): void
+    + tryPopRecord(threadId: ThreadId): optional<TelemetryRecord>
   }
 
   class TelemetryRecordFactory {
@@ -113,7 +116,7 @@ package "Layer 2 boundary" #F4F4F4 {
   }
 }
 
-Gem5TelemetryProbe --> ThreadTelemetryRegistry : finds state
+Gem5TelemetryProbe "many" --> "1 shared" ThreadTelemetryRegistry : finds state
 Gem5TelemetryProbe --> TelemetryRecordFactory : constructs record
 TelemetryRecordFactory --> TelemetryRecord
 ThreadTelemetryRegistry "1" *-- "1..* states" ThreadTelemetryState
@@ -139,6 +142,15 @@ note bottom of Gem5TelemetryProbe
   to Request. The MSHR/fill path preserves Request.
   A true pre-invalidation Replacement event captures
   all eight ways and emits the correlated snapshot.
+
+  Saturation counters and Request links stay local
+  to the probe because they represent cache-local state.
+end note
+
+note bottom of ThreadTelemetryRegistry
+  One system-owned instance is injected into every probe.
+  A migrating thread keeps the same state and SPSC buffer;
+  probe callbacks remain serialized by gem5's event queue.
 end note
 
 note bottom of ThreadBuffer

@@ -4,6 +4,10 @@ Import('*')
 
 PySource('m5.objects', 'telemetry_config.py')
 SimObject('IntellicoreProbeSmoke.py', sim_objects=['IntellicoreProbeSmoke'])
+SimObject(
+    'layer1/ThreadTelemetryRegistry.py',
+    sim_objects=['ThreadTelemetryRegistry']
+)
 SimObject('layer1/Gem5TelemetryProbe.py', sim_objects=['Gem5TelemetryProbe'])
 SimObject(
     'layer1/X86TelemetryTimingSimpleCPU.py',
