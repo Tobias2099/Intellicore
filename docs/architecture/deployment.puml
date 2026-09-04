@@ -1,0 +1,168 @@
+@startuml
+title IntelliCore - Deployment / gem5 Eviction Hook (C++)
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+hide empty members
+
+package "Weights Boundary" #F4F4F4 {
+  class WeightsFile <<ONNX artifact>> {
+    + path: std::string
+  }
+}
+
+package "gem5 Integration Boundary" #E8F4FD {
+  abstract class BaseReplacementPolicy <<gem5>> {
+    + {abstract} getVictim(candidates: ReplacementCandidates): ReplaceableEntry*
+    + {abstract} touch(candidate: ReplaceableEntry*): void
+    + {abstract} reset(candidate: ReplaceableEntry*): void
+    + {abstract} invalidate(candidate: ReplaceableEntry*): void
+  }
+
+  class ReplacementCandidates <<gem5>> {
+    + size(): uint32_t
+    + operator[](i): ReplaceableEntry*
+  }
+
+  class ReplaceableEntry <<gem5>> {
+    + replacementData: std::shared_ptr<ReplacementData>
+  }
+}
+
+package "Deployment - RL Eviction Policy" #F3FAF3 {
+
+  class CandidateLine <<value object>> {
+    + address: uint64_t
+    + age: uint64_t
+    + use_count: uint32_t
+    + dirty_bit: bool
+    + access_bit: bool
+    + lru_rank: uint8_t
+    + saturation_counter: uint8_t
+    + core_id: uint8_t
+    + way_index: uint8_t
+  }
+
+  note right of CandidateLine
+    Mirrors gem5 ReplaceableEntry
+    metadata. Extracted from
+    RLReplData on each getVictim call.
+  end note
+
+  class RLReplData <<ReplacementData>> {
+    + load_tick: uint64_t
+    + use_count: uint32_t
+    + last_use_tick: uint64_t
+    + saturation_counter: uint8_t
+    + core_id: uint8_t
+  }
+
+  note right of RLReplData
+    Attached to every cache line
+    as its replacementData.
+    Updated by touch() and reset()
+    on every cache access.
+    Read by RLEvictionPolicy
+    to build CandidateLine objects.
+  end note
+
+  class DeploymentSlidingWindow {
+    - buffer: TraceRecord[W]
+    - head: uint32_t
+    - W: uint32_t
+    + push(record: TraceRecord): void
+    + getWindow(): TraceRecord[W]
+  }
+
+  note right of DeploymentSlidingWindow
+    C++ mirror of Python SlidingWindow.
+    Maintained live inside gem5.
+    Advanced on every cache access
+    via touch() and reset() hooks,
+    not just eviction events.
+  end note
+
+  class DeploymentStateVectorBuilder {
+    + build(window: DeploymentSlidingWindow,
+            candidates: CandidateLine[]): float[]
+  }
+
+  note right of DeploymentStateVectorBuilder
+    C++ mirror of Python
+    StateVectorBuilder.
+    Produces flat float[] directly
+    consumable by ONNXSession.
+    Must match Python encoding
+    exactly — same normalization,
+    same feature ordering.
+  end note
+
+  class ONNXSession {
+    - session: Ort::Session
+    - env: Ort::Env
+    + ONNXSession(model_path: std::string)
+    + runForward(input: float[],
+                 input_size: uint32_t): float[]
+  }
+
+  note right of ONNXSession
+    Wraps ONNX Runtime C++ API.
+    Loads weights once at construction.
+    runForward() executes full network
+    forward pass: LSTM encoding,
+    candidate MLP, scoring MLP.
+    Returns one Q-value per candidate.
+    Stateless after load.
+  end note
+
+  class RLEvictionPolicy {
+    - session: ONNXSession
+    - window: DeploymentSlidingWindow
+    - builder: DeploymentStateVectorBuilder
+    - current_tick: uint64_t
+    + RLEvictionPolicy(model_path: std::string)
+    + getVictim(candidates: ReplacementCandidates): ReplaceableEntry*
+    + touch(candidate: ReplaceableEntry*): void
+    + reset(candidate: ReplaceableEntry*): void
+    + invalidate(candidate: ReplaceableEntry*): void
+    - extractCandidates(candidates: ReplacementCandidates): CandidateLine[]
+    - argmax(q_values: float[]): uint32_t
+  }
+
+  note right of RLEvictionPolicy
+    Subclasses gem5 BaseReplacementPolicy.
+    getVictim():
+      1. Extract CandidateLine[] from
+         ReplacementCandidates via RLReplData
+      2. Build float[] state vector
+      3. Run ONNX forward pass
+      4. argmax over Q-values
+      5. Return candidates[argmax]
+    touch(): update RLReplData fields,
+             push TraceRecord to window
+    reset(): initialize RLReplData on
+             new line install
+  end note
+}
+
+WeightsFile ..> ONNXSession : loaded by
+
+BaseReplacementPolicy <|-- RLEvictionPolicy : implements
+
+RLEvictionPolicy *-- ONNXSession : owns
+RLEvictionPolicy *-- DeploymentSlidingWindow : owns
+RLEvictionPolicy *-- DeploymentStateVectorBuilder : owns
+
+RLEvictionPolicy ..> ReplacementCandidates : receives in getVictim
+RLEvictionPolicy ..> ReplaceableEntry : returns victim
+RLEvictionPolicy ..> CandidateLine : constructs internally
+RLEvictionPolicy ..> RLReplData : reads and writes
+
+DeploymentStateVectorBuilder ..> DeploymentSlidingWindow : reads
+DeploymentStateVectorBuilder ..> CandidateLine : reads
+
+ReplaceableEntry *-- RLReplData : replacementData
+
+@enduml

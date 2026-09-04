@@ -1,0 +1,277 @@
+@startuml
+title IntelliCore - RL Training Loop (Python / PyTorch)
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+hide empty members
+
+package "Replay Buffer Boundary" #F4F4F4 {
+  class ReplayBuffer <<shared boundary>> {
+    + sample(batch_size: int): Transition[]
+    + size(): int
+  }
+}
+
+package "Encoding" #FFF8E7 {
+  class TraceEncoder {
+    - input_size: int = 12
+    + encode(window: TraceRecord[W]): float[W][12]
+  }
+
+  note right of TraceEncoder
+    Encodes each TraceRecord into
+    a fixed float vector:
+    address_delta, time_delta,
+    is_hit, op_type (one-hot),
+    core_id (one-hot).
+    Normalizes continuous values
+    to zero mean, unit variance.
+  end note
+
+  class CandidateEncoder {
+    + encode(line: CandidateLine): float[10]
+  }
+
+  note right of CandidateEncoder
+    Encodes one candidate line:
+    age, use_count, dirty_bit,
+    access_bit, lru_rank,
+    saturation_counter, core_id
+    (one-hot). Normalized.
+  end note
+}
+
+package "Network Architecture" #F3FAF3 {
+  class LSTMEncoder {
+    - lstm: nn.LSTM
+    - num_layers: int = 2
+    - hidden_size: int = 128
+    - input_size: int = 12
+    - dropout: float = 0.1
+    + forward(x: float[W][12]): float[128]
+  }
+
+  note right of LSTMEncoder
+    Processes W trace records
+    sequentially. Returns final
+    hidden state h_W only.
+    Dropout applied between layers,
+    not on final output.
+  end note
+
+  class CandidateMLP {
+    - layers: nn.Sequential
+    + forward(x: float[10]): float[64]
+  }
+
+  note right of CandidateMLP
+    Linear(10->64) -> ReLU
+    -> Linear(64->64) -> ReLU
+    Shared weights applied
+    independently per candidate.
+  end note
+
+  class ScoringMLP {
+    - layers: nn.Sequential
+    + forward(x: float[192]): float
+  }
+
+  note right of ScoringMLP
+    Linear(192->128) -> ReLU
+    -> Linear(128->64) -> ReLU
+    -> Linear(64->1)
+    No activation on final layer.
+    Output is raw Q-value scalar.
+  end note
+
+  class OnlineQNetwork {
+    - lstm: LSTMEncoder
+    - candidate_mlp: CandidateMLP
+    - layer_norm: nn.LayerNorm
+    - scoring_mlp: ScoringMLP
+    + forward(state: StateVector): float[N]
+    + getQAtAction(state: StateVector,
+                   action: int): float
+    + parameters(): Parameters
+  }
+
+  note right of OnlineQNetwork
+    Receives gradients.
+    forward() returns one Q-value
+    per candidate (N values).
+    getQAtAction() returns Q(s_t, a_t)
+    for the specific action taken —
+    used in loss computation only.
+  end note
+
+  class TargetQNetwork {
+    - lstm: LSTMEncoder
+    - candidate_mlp: CandidateMLP
+    - layer_norm: nn.LayerNorm
+    - scoring_mlp: ScoringMLP
+    + forward(state: StateVector): float[N]
+    + maxQ(state: StateVector): float
+  }
+
+  note right of TargetQNetwork
+    Receives NO gradients.
+    Structurally identical to
+    OnlineQNetwork but all params
+    are detached from autograd.
+    maxQ() returns max over all
+    candidate Q-values at s_t+1.
+    Used only for Bellman target.
+  end note
+}
+
+package "Training Logic" #F0EAF8 {
+  class BellmanTargetComputer {
+    - gamma: float = 0.99
+    + compute(r_t: float,
+              max_q_next: float): float
+  }
+
+  note right of BellmanTargetComputer
+    target = r_t + gamma * max_q_next
+    Stateless. Pure computation.
+  end note
+
+  class LossComputer {
+    - cql_alpha: float
+    + computeBellmanLoss(target: float,
+                q_online_at_action: float): float
+    + computeCQLTerm(q_values_online: float[N],
+                     action_taken: int): float
+    + totalLoss(bellman: float, cql: float): float
+  }
+
+  note right of LossComputer
+    Bellman loss:
+    (target - Q_online(s_t, a_t))^2
+    CQL term penalizes Q-values on
+    actions not taken, preventing
+    overestimation on unseen states.
+    total = bellman + alpha * cql
+  end note
+
+  class Optimizer {
+    - adam: torch.optim.Adam
+    - learning_rate: float
+    + step(loss: Tensor): void
+    + zeroGrad(): void
+  }
+
+  class TargetNetworkUpdater {
+    - update_every_N: int
+    - step_count: int
+    + maybeUpdate(online: OnlineQNetwork,
+                  target: TargetQNetwork): void
+  }
+
+  note right of TargetNetworkUpdater
+    Hard copies online weights into
+    target every N steps.
+    target.params = online.params.detach()
+  end note
+
+  class TrainingMetrics {
+    - bellman_loss_history: float[]
+    - mean_q_history: float[]
+    - episode_reward_history: float[]
+    + record(step: int, loss: float,
+             mean_q: float, reward: float): void
+    + report(step: int): void
+  }
+
+  note right of TrainingMetrics
+    Tracks: Bellman loss, mean Q-value
+    per minibatch, Q-value spread across
+    candidates, episode reward sum.
+    Used to detect instability and
+    measure convergence.
+  end note
+
+  class ModelExporter {
+    + exportONNX(network: OnlineQNetwork,
+                 path: str): void
+    + exportStateDict(network: OnlineQNetwork,
+                      path: str): void
+  }
+
+  note right of ModelExporter
+    ONNX export for C++ deployment
+    inside gem5 getVictim hook.
+    StateDict export for resuming
+    training or fine-tuning.
+  end note
+
+  class TrainingLoop {
+    - replay_buffer: ReplayBuffer
+    - online: OnlineQNetwork
+    - target: TargetQNetwork
+    - encoder_trace: TraceEncoder
+    - encoder_candidate: CandidateEncoder
+    - bellman: BellmanTargetComputer
+    - loss: LossComputer
+    - optimizer: Optimizer
+    - updater: TargetNetworkUpdater
+    - metrics: TrainingMetrics
+    - exporter: ModelExporter
+    - batch_size: int
+    - num_steps: int
+    + train(): void
+    - runStep(): void
+    - encodeBatch(batch: Transition[]): EncodedBatch
+  }
+
+  note right of TrainingLoop
+    Orchestrates full training.
+    Each step: sample minibatch,
+    encode states, forward pass
+    online and target networks,
+    compute Bellman target and loss,
+    backpropagate online network,
+    maybe update target network,
+    log metrics. Exports model
+    on completion.
+  end note
+}
+
+package "Weights Boundary" #F4F4F4 {
+  class WeightsFile <<ONNX artifact>> {
+    + path: str
+  }
+}
+
+ReplayBuffer ..> TrainingLoop : sampled by
+
+TrainingLoop *-- OnlineQNetwork : owns
+TrainingLoop *-- TargetQNetwork : owns
+TrainingLoop *-- BellmanTargetComputer : owns
+TrainingLoop *-- LossComputer : owns
+TrainingLoop *-- Optimizer : owns
+TrainingLoop *-- TargetNetworkUpdater : owns
+TrainingLoop *-- TrainingMetrics : owns
+TrainingLoop *-- ModelExporter : owns
+TrainingLoop *-- TraceEncoder : owns
+TrainingLoop *-- CandidateEncoder : owns
+
+OnlineQNetwork *-- LSTMEncoder : owns
+OnlineQNetwork *-- CandidateMLP : owns
+OnlineQNetwork *-- ScoringMLP : owns
+
+TargetQNetwork *-- LSTMEncoder : owns
+TargetQNetwork *-- CandidateMLP : owns
+TargetQNetwork *-- ScoringMLP : owns
+
+TargetNetworkUpdater ..> OnlineQNetwork : reads weights from
+TargetNetworkUpdater ..> TargetQNetwork : copies weights into
+
+BellmanTargetComputer ..> TargetQNetwork : uses maxQ()
+LossComputer ..> OnlineQNetwork : uses getQAtAction()
+
+ModelExporter ..> WeightsFile : writes
+
+@enduml

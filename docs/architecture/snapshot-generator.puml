@@ -1,0 +1,192 @@
+@startuml
+title IntelliCore - Layer 3 Snapshot Generator
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+hide empty members
+
+package "K-Way Merge Boundary" #F4F4F4 {
+  class KWayMerger <<Layer 3 - external>> {
+    + push(record: TraceRecord): void
+    + push(snapshot: EvictionSnapshot): void
+  }
+}
+
+package "Layer 3 - Snapshot Generator" #F3FAF3 {
+
+  enum PolicyId {
+    LRU = 0
+    LFU = 1
+    MRU = 2
+  }
+
+  class TraceRecord <<value object>> {
+    + tick: uint64_t
+    + core_id: uint8_t
+    + thread_id: uint8_t
+    + sequence_num: uint32_t
+    + op_type: uint8_t
+    + address: uint64_t
+    + is_hit: bool
+    + is_eviction: bool
+    + evicted_address: uint64_t
+    + retired_inst_count: uint64_t
+    + policy_id: PolicyId
+    + run_id: uint8_t
+  }
+
+  class EvictionSnapshot <<value object>> {
+    + tick: uint64_t
+    + set_index: uint32_t
+    + run_id: uint8_t
+    + candidates: CandidateLine[N]
+  }
+
+  class CandidateLine <<value object>> {
+    + address: uint64_t
+    + age: uint64_t
+    + use_count: uint32_t
+    + dirty_bit: bool
+    + access_bit: bool
+    + lru_rank: uint8_t
+    + saturation_counter: uint8_t
+    + core_id: uint8_t
+    + was_chosen: bool
+    + way_index: uint8_t
+  }
+
+  class SlidingWindow {
+    - buffer: TraceRecord[W]
+    - head: uint32_t
+    - W: uint32_t
+    + push(record: TraceRecord): void
+    + getWindow(): TraceRecord[W]
+    + isFull(): bool
+  }
+
+  class EpisodeSegmenter {
+    - K: uint64_t
+    - last_boundary: uint64_t
+    - current_transitions: Transition[]
+    + onRecord(record: TraceRecord): bool
+    + getCurrentEpisode(): Transition[]
+    + reset(): void
+  }
+
+  note right of EpisodeSegmenter
+    Returns true when retired_inst_count
+    crosses a multiple of K, signaling
+    an episode boundary. Truncates last
+    W-trace tail to avoid unlabeled rewards.
+  end note
+
+  class RewardLabeler {
+    - lookahead: Map<uint64_t, uint64_t>
+    - W: uint32_t
+    - records_seen: uint32_t
+    + onEviction(evicted_address: uint64_t, tick: uint64_t): void
+    + onRecord(record: TraceRecord): Optional<float>
+    + hasPending(): bool
+  }
+
+  note right of RewardLabeler
+    Holds evicted addresses in lookahead map.
+    On each incoming TraceRecord, checks if
+    address matches any pending eviction.
+    Returns +1.0 if no re-access within W
+    records, -1.0 if re-accessed.
+  end note
+
+  class StateVectorBuilder {
+    + build(window: TraceRecord[W],
+            candidates: CandidateLine[]): StateVector
+  }
+
+  class StateVector <<value object>> {
+    + trace_window: TraceRecord[W]
+    + candidate_features: CandidateLine[]
+    + episode_id: uint32_t
+    + transition_index: uint32_t
+  }
+
+  class Transition <<value object>> {
+    + s_t: StateVector
+    + a_t: uint8_t
+    + r_t: float
+    + s_t_plus_1: StateVector
+  }
+
+  note right of Transition
+    a_t is the way_index of the
+    candidate chosen for eviction.
+    s_t_plus_1 is captured at the
+    next eviction event.
+  end note
+
+  class SnapshotGenerator {
+    - window: SlidingWindow
+    - segmenter: EpisodeSegmenter
+    - labeler: RewardLabeler
+    - builder: StateVectorBuilder
+    - pending_s_t: Optional<StateVector>
+    - pending_a_t: Optional<uint8_t>
+    + onRecord(record: TraceRecord): void
+    + onEviction(snapshot: EvictionSnapshot): void
+    - tryEmitTransition(s_t_plus_1: StateVector): void
+  }
+
+  note right of SnapshotGenerator
+    Orchestrates all snapshot logic.
+    On every TraceRecord: advances
+    SlidingWindow, ticks RewardLabeler,
+    ticks EpisodeSegmenter.
+    On EvictionSnapshot: builds s_t,
+    stores pending_s_t and a_t,
+    awaits next eviction to form
+    complete Transition.
+  end note
+}
+
+package "Replay Buffer" #E8F4FD {
+  class ReplayBuffer {
+    - transitions: Transition[capacity]
+    - head: uint32_t
+    - tail: uint32_t
+    - capacity: uint32_t
+    + push(transition: Transition): void
+    + sample(batch_size: uint32_t): Transition[]
+    + size(): uint32_t
+    + isFull(): bool
+  }
+
+  note right of ReplayBuffer
+    Circular buffer. On overflow,
+    oldest transitions are overwritten.
+    Shared boundary object between
+    Snapshot Generator and Training Loop.
+  end note
+}
+
+KWayMerger ..> SnapshotGenerator : pushes TraceRecord\nand EvictionSnapshot
+
+SnapshotGenerator *-- SlidingWindow : owns
+SnapshotGenerator *-- EpisodeSegmenter : owns
+SnapshotGenerator *-- RewardLabeler : owns
+SnapshotGenerator *-- StateVectorBuilder : owns
+SnapshotGenerator --> Transition : emits
+SnapshotGenerator --> ReplayBuffer : pushes into
+
+StateVectorBuilder ..> StateVector : builds
+StateVectorBuilder ..> SlidingWindow : reads
+StateVectorBuilder ..> EvictionSnapshot : reads
+
+Transition *-- StateVector : s_t and s_t_plus_1
+EvictionSnapshot *-- CandidateLine : owns N candidates
+TraceRecord --> PolicyId
+
+EpisodeSegmenter --> Transition : accumulates
+RewardLabeler ..> Transition : labels r_t
+
+@enduml
