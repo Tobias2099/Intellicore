@@ -20,7 +20,6 @@ class TelemetryRecord
     static constexpr uint8_t EvictionBit = 2;
     static constexpr uint8_t EvictedWayShift = 3;
     static constexpr uint8_t EvictedWayMask = 0x7;
-    static constexpr uint8_t UnknownWay = 0x7;
     static constexpr std::size_t EncodedSize = 16;
 
     uint8_t metadata = 0;
