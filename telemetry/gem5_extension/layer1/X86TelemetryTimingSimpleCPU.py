@@ -9,5 +9,5 @@ class X86TelemetryTimingSimpleCPU(X86TimingSimpleCPU):
     cxx_class = "gem5::intellicore::TelemetryTimingSimpleCPU"
 
     telemetry_probe = Param.Gem5TelemetryProbe(
-        "Telemetry probe that owns per-thread migration state"
+        "Telemetry probe that observes shared per-thread migration state"
     )

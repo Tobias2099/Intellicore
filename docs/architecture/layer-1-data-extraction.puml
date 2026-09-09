@@ -13,9 +13,11 @@ package "gem5 integration" #E8F4FD {
   }
 
   class Gem5TelemetryProbe {
-    - registry: ThreadTelemetryRegistry&
-    + handleRequest(pktInfo: PacketInfo): void
-    + recordEviction(event: EvictionEvent): void
+    - registry: ThreadTelemetryRegistry*
+    - saturationCounters: Map<CacheLine, uint2>
+    + handleAccess(arg: CacheAccessProbeArg): void
+    + handleReplacement(arg: CacheReplacementProbeArg): void
+    + recordEviction(event: EvictionEvent, threadId: ThreadId, correlatedRecordCounter: uint32_t): bool
     + recordMigration(threadId: ThreadId, newCoreId: CoreId): void
   }
 
@@ -61,12 +63,13 @@ package "Layer 1 - Data Extraction" #F3FAF3 {
   }
 
   note right of EvictionSnapshotPayload
+    fields[0..7] map directly to L1D ways 0..7
     each lineData: uint8_t bit layout
     [1:0]  saturationCounter: 2 bits
     [4:2]  lruRank: 3 bits
     [5]    dirtyBit: 1 bit
     [6]    invalidBit: 1 bit
-    [7]    accessBit: 1 bit
+    [7]    reserved: 1 bit (always 0)
   end note
 
   class ThreadBuffer <<SPSC>> {
@@ -91,15 +94,17 @@ package "Layer 1 - Data Extraction" #F3FAF3 {
   }
 
   class ThreadTelemetryRegistry {
+    <<shared system SimObject>>
     - states: Map<ThreadId, ThreadTelemetryState>
-    + stateFor(threadId: ThreadId): ThreadTelemetryState&
+    + stateFor(threadId: ThreadId, initialCoreId: CoreId): ThreadTelemetryState&
     + migrate(threadId: ThreadId, newCoreId: CoreId): void
+    + tryPopRecord(threadId: ThreadId): optional<TelemetryRecord>
   }
 
   class TelemetryRecordFactory {
     {static} - recordCounter: atomic<uint64_t>
     + buildTraceRecord(pktInfo: PacketInfo, state: ThreadTelemetryState): TelemetryRecord
-    + buildEvictionRecord(event: EvictionEvent, state: ThreadTelemetryState): TelemetryRecord
+    + buildEvictionRecord(event: EvictionEvent, correlatedRecordCounter: uint32_t): TelemetryRecord
     + buildMigrationRecord(state: ThreadTelemetryState, newCoreId: CoreId): TelemetryRecord
     {static} - allocateRecordId(): uint64_t
   }
@@ -111,7 +116,7 @@ package "Layer 2 boundary" #F4F4F4 {
   }
 }
 
-Gem5TelemetryProbe --> ThreadTelemetryRegistry : finds state
+Gem5TelemetryProbe "many" --> "1 shared" ThreadTelemetryRegistry : finds state
 Gem5TelemetryProbe --> TelemetryRecordFactory : constructs record
 TelemetryRecordFactory --> TelemetryRecord
 ThreadTelemetryRegistry "1" *-- "1..* states" ThreadTelemetryState
@@ -126,9 +131,26 @@ TelemetryRecord ..> EvictionSnapshotPayload : payload when kind = 1
 MemoryTracePayload --> MemoryEventKind
 
 note right of TelemetryRecordFactory
-  recordCounter assigns one global ordering
-  across all telemetry records and all threads.
-  This must be atomic on the hot path.
+  New traces and migrations receive a globally
+  allocated recordCounter. An eviction snapshot
+  reuses its causative memory trace's value, making
+  recordCounter the pair's correlation identifier.
+end note
+
+note bottom of Gem5TelemetryProbe
+  L1D demand miss: emit trace, then attach its ID
+  to Request. The MSHR/fill path preserves Request.
+  A true pre-invalidation Replacement event captures
+  all eight ways and emits the correlated snapshot.
+
+  Saturation counters and Request links stay local
+  to the probe because they represent cache-local state.
+end note
+
+note bottom of ThreadTelemetryRegistry
+  One system-owned instance is injected into every probe.
+  A migrating thread keeps the same state and SPSC buffer;
+  probe callbacks remain serialized by gem5's event queue.
 end note
 
 note bottom of ThreadBuffer

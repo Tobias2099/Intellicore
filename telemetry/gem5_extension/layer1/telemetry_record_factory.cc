@@ -52,17 +52,19 @@ TelemetryRecordFactory::buildTraceRecord(
 }
 
 TelemetryRecord
-TelemetryRecordFactory::buildEvictionRecord(const EvictionEvent &event) const
+TelemetryRecordFactory::buildEvictionRecord(
+    const EvictionEvent &event,
+    uint32_t correlatedRecordCounter) const
 {
     TelemetryRecord record;
     record.setKind(RecordKind::EvictionSnapshot);
     record.setIsHit(event.isHit);
     record.setIsEviction(event.isEviction);
     record.setEvictedWayIndex(event.evictionWayIndex);
-    record.recordCounter = allocateRecordId();
+    record.recordCounter = correlatedRecordCounter;
 
     EvictionSnapshotPayload payload;
-    payload.fields = EvictionEvent::buildLineDataVector(event.line);
+    payload.fields = EvictionEvent::buildLineDataVector(event.lines);
     record.setEvictionSnapshotPayload(payload);
 
     return record;
