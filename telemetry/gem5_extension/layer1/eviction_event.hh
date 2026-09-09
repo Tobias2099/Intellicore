@@ -35,6 +35,8 @@ class EvictionEvent
     bool isEviction = false;
     uint8_t evictionWayIndex = UnknownWay;
     EvictionLineData line;
+    const CacheAccessor *cache = nullptr;
+    bool isSecure = false;
 
     static bool packetLooksLikeEviction(const probing::PacketInfo &pkt)
     {
@@ -56,6 +58,8 @@ class EvictionEvent
         event.requestorId = arg.requestorID;
         event.isEviction = true;
         event.evictionWayIndex = UnknownWay;
+        event.cache = &arg.accessor;
+        event.isSecure = arg.isSecure;
 
         return event;
     }
@@ -69,6 +73,14 @@ class EvictionEvent
         packed |= (lineData.invalidBit ? 1u : 0u) << 6;
         packed |= (lineData.accessBit ? 1u : 0u) << 7;
         return packed;
+    }
+
+    static std::array<uint8_t, 8>
+    buildLineDataVector(const EvictionLineData &lineData)
+    {
+        std::array<uint8_t, 8> fields{};
+        fields[0] = packLineData(lineData);
+        return fields;
     }
 
     void setSaturationFromRefCount(uint64_t refCount)
