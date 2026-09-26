@@ -2,6 +2,12 @@
 
 IntelliCore is a research monorepo for a MARL-driven cache coordination system. The platform is organized around the project requirements: cycle-accurate gem5 simulation, Python-based agent training, Supabase cloud Postgres telemetry storage, and a Visual-Stats dashboard for performance analysis.
 
+## Telemetry Architecture
+![Telemetry Design](<IntelliCore Architecture-Telemetry.png>)
+
+## RL Architecture
+![RL Design](<IntelliCore Architecture-Reinforcement Learning.png>)
+
 ## Repository Structure
 
 ```text
